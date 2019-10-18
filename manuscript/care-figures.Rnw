@@ -1,0 +1,428 @@
+\documentclass{article}
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage{float}
+\usepackage{array}
+\usepackage{multirow}
+
+\title{Figures for ``The covariate-adjusted residual estimator and its use in both randomized trials and observational settings''}
+\author{Stephen A. Lauer, Nicholas G. Reich, and Laura B. Balzer}
+
+\begin{document}
+
+<<library, include=FALSE>>=
+library(dplyr)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(readr)
+library(xtable)
+
+opts_knit$set(root.dir = here::here())
+@
+
+<<load, include=FALSE>>=
+source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
+cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+## read in bednet data
+ghana_bednet_data <- read_table2("CARE-paper/data/dataverse_files/ghana_bednet.tab")
+
+est <- readRDS(find_recent_file(name_start="sim-output",
+                                path="CARE-paper/data/simulation-output/")) %>%
+    mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
+
+evaluation_dat <- est %>%
+    group_by(trial, ATE, y_formula, a_formula, name) %>%
+    summarise(ave = mean(pt),
+              bias = mean(pt - ATE),
+              abs_bias = abs(mean(pt - ATE)),
+              mc_var = var(pt),
+              mc_se = sqrt(mc_var),
+              est_var=mean(var),
+              est_se=sqrt(est_var),
+              emp_unbias = abs_bias-1.96*mc_se<0,
+              coverage = mean(cover),
+              pwr = mean(reject[ATE!=0]),
+              type1_err = mean(reject[ATE==0])) %>%
+    group_by(trial, ATE, y_formula, a_formula) %>%
+    ungroup() %>%
+    mutate(y_formula=ifelse(name %in% c("unadj", "IPW", "IPW2"),
+                            "none", as.character(y_formula)) %>% as.factor,
+           a_formula=ifelse(name %in% c("unadj", "CARE"),
+                            "none", as.character(a_formula)) %>% as.factor,
+           ATE=factor(ATE, labels=c("Effect", "Null")),
+           trial=ifelse(trial, "Randomized", "Observational")) %>%
+    distinct()
+
+
+plot_dat <- evaluation_dat %>%
+    filter(name!="unadj") %>%
+    mutate(name=gsub("_"," ", name))
+@
+
+<<sim-table, echo=FALSE, warning=FALSE, message=FALSE, results='asis'>>=
+sim_table <- evaluation_dat %>%
+    transmute(Trial=trial,
+              Exposure=ATE,
+              Estimator=factor(name,
+                               levels=c("CARE_IPW", "CARE", "IPW", "unadj"),
+                               labels=c("CARE--IPW", "CARE", "IPW", "Unadj")),
+              `Bias`=bias,
+              `MC SE`=mc_se,
+              `Average SE`=est_se,
+              `95\\% CI coverage`=paste0(round(coverage*100,1), "\\%"),
+              `Power/ Type I error`=paste0(ifelse(Exposure=="Effect",
+                                                 round(pwr*100,1),
+                                                 round(type1_err*100,1)),"\\%")) %>%
+    arrange(desc(Trial), Exposure, Estimator) %>%
+    mutate(Trial=ifelse(Estimator=="CARE--IPW",
+                        paste0("\\hline \\multirow{4}{*}{",as.character(Trial),"}"), ""),
+           Exposure=ifelse(Estimator=="CARE--IPW",
+                           paste0("\\multirow{4}{*}{",as.character(Exposure),"}"), ""))
+
+print(xtable(sim_table, align="llllrrrb{1.25cm}b{1.2cm}",
+             digits=c(0,0,0,0,3,3,3,1,1),
+             caption="Results for the effect estimators in Simulation 1 by trial type and exposure. The covariate-adjusted residuals estimator (CARE) used a logistic regression with $W1$, $W3$, and $W4$ to predict the outcome. The inverse-probability of treatment weighting (IPW) estimator uses a logistic regression with $W1$ and $W4$ to estimate the propensity scores. CARE with inverse probability weighting (CARE--IPW) the same regression as CARE to predict the outcome and the same regression as IPW to estimate the propensity scores.",
+             label="tbl:sim"),
+      include.rownames=FALSE,
+      sanitize.text.function = identity)
+@
+
+<<application-plot, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=0.5, out.width='100%', fig.cap="The estimates and 95\\% confidence intervals for the difference in childhood mortality rate per thousand person-years associated with the allocation of bednets. The four estimators used are the unadjusted estimator, the covariate-adjusted residuals estimator (CARE), the inverse-probability of treatment weighting estimator (IPW), and CARE with inverse-probability weighting (CARE--IPW). All estimates indicate that bednets caused a reduction in childhood mortality, though the CARE and CARE--IPW estimates are more precise than those of the unadjusted and IPW estimators.">>=
+
+## fit Poisson model for outcome as in Hayes and Moulton
+bednet_glm <- glm(outcome~as.factor(agegp)+as.factor(sex)+offset(log(follyr)),
+                  data=ghana_bednet_data, family="poisson")
+
+## check fit (metrics are different than in Hayes and Moulton)
+# summary(bednet_glm)
+
+## create Y-hat values using predict
+ghana_bednet_data$pred_outcome <- predict(bednet_glm,
+                                          ghana_bednet_data,
+                                          type = "response")
+
+## sum outcomes and predictions (and follow-up years) by cluster
+gb_clusters <- ghana_bednet_data %>%
+    group_by(cluster) %>%
+    summarise(N= n(),
+              bednet = mean(bednet),
+              outcome = sum(outcome),
+              preds = sum(pred_outcome),
+              follyr = sum(follyr),
+              agemn=mean(agemn),
+              sex=mean(sex==1)) %>%
+    ungroup()
+
+## extract Y and Y-hay values (adjusting outcome by follow-up years)
+Y <- 1e3*gb_clusters$outcome/gb_clusters$follyr
+Y_hat <- 1e3*gb_clusters$preds/gb_clusters$follyr
+## the treatment is assignment to bednet group
+A <- gb_clusters$bednet
+Y1bar <- mean(Y[A==1])
+Y0bar <- mean(Y[A==0])
+
+## find the unadjusted estimator for difference between groups
+unadj <- Y1bar-Y0bar
+IC_unadj <- (A/mean(A))*(Y-Y1bar)-((1-A)/mean(1-A))*(Y-Y0bar)-unadj
+var_unadj <- var(IC_unadj)/length(IC_unadj)
+cutoff <- qnorm(0.05/2, lower.tail=F)
+se_unadj <- sqrt(var_unadj)
+CI_lo_unadj <- unadj - cutoff*se_unadj
+CI_hi_unadj <- unadj + cutoff*se_unadj
+p_unadj <- 2*pnorm(abs(unadj/se_unadj), lower.tail=F)
+
+## find the CARE for difference between groups
+CARE <- mean((A/mean(A)-(1-A)/mean(1-A))*(Y-Y_hat))
+IC_CARE <- (A/mean(A)-(1-A)/mean(1-A))*(Y-Y_hat)-CARE
+var_CARE <- var(IC_CARE)/length(IC_CARE)
+se_CARE <- sqrt(var_CARE)
+CI_lo_CARE <- CARE - cutoff*se_CARE
+CI_hi_CARE <- CARE + cutoff*se_CARE
+p_CARE <- 2*pnorm(abs(CARE/se_CARE), lower.tail=F)
+
+## fit a propensity score model to the cluster data
+cluster_propensity_fit <- glm(bednet~agemn+sex,
+                              data=gb_clusters,
+                              family="binomial")
+## calculate the propensity score for each group
+A_hat <- predict(cluster_propensity_fit,
+                 gb_clusters,
+                 type="response")
+
+## find the IPW for difference between groups
+IPW <- mean((A/A_hat-(1-A)/(1-A_hat))*Y)
+IC_IPW <- (A/A_hat-(1-A)/(1-A_hat))*Y-IPW
+var_IPW <- var(IC_IPW)/length(IC_IPW)
+se_IPW <- sqrt(var_IPW)
+CI_lo_IPW <- IPW - cutoff*se_IPW
+CI_hi_IPW <- IPW + cutoff*se_IPW
+p_IPW <- 2*pnorm(abs(IPW/se_IPW), lower.tail=F)
+
+## find the CARE--IPW for difference between groups
+CARE_IPW <- mean((A/A_hat-(1-A)/(1-A_hat))*(Y-Y_hat))
+IC_CARE_IPW <- (A/A_hat-(1-A)/(1-A_hat))*(Y-Y_hat)-CARE_IPW
+var_CARE_IPW <- var(IC_CARE_IPW)/length(IC_CARE_IPW)
+se_CARE_IPW <- sqrt(var_CARE_IPW)
+CI_lo_CARE_IPW <- CARE_IPW - cutoff*se_CARE_IPW
+CI_hi_CARE_IPW <- CARE_IPW + cutoff*se_CARE_IPW
+p_CARE_IPW <- 2*pnorm(abs(CARE_IPW/se_CARE_IPW), lower.tail=F)
+
+plot_dat <- tibble(name=c("Unadjusted",
+                          "IPW",
+                          "CARE",
+                          "CARE-IPW"),
+                   estimate=round(c(unadj,
+                                    IPW,
+                                    CARE,
+                                    CARE_IPW),2),
+                   CI_lo=round(c(CI_lo_unadj,
+                                 CI_lo_IPW,
+                                 CI_lo_CARE,
+                                 CI_lo_CARE_IPW),2),
+                   CI_hi=round(c(CI_hi_unadj,
+                                 CI_hi_IPW,
+                                 CI_hi_CARE,
+                                 CI_hi_CARE_IPW),2),
+                   se=round(c(se_unadj,
+                              se_IPW,
+                              se_CARE,
+                              se_CARE_IPW),2),
+                   pval=round(c(p_unadj,
+                                p_IPW,
+                                p_CARE,
+                                p_CARE_IPW),2))
+write.csv(plot_dat, "CARE-paper/data/app-output.csv")
+
+ggplot(data=plot_dat, aes(y=name, x=estimate)) +
+    geom_vline(aes(xintercept=0), linetype="dashed") +
+    geom_errorbarh(aes(xmin=CI_lo, xmax=CI_hi), height=0.2, size=1) +
+    geom_point(size=4, shape=21, fill="white") +
+    scale_y_discrete("",
+                     limits=c("CARE-IPW", "IPW", "CARE", "Unadjusted")) +
+    scale_x_continuous("Estimated difference in childhood mortality rate, per thousand person-years",
+                       limits=c(-20,10),
+                       breaks=seq(-20, 10, 10)) +
+    theme_bw() +
+    theme(axis.text=element_text(color="black", size=10),
+          axis.title=element_text(size=12))
+@
+
+<<app-unadj, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
+## get just the legend
+g_legend <- function(a.gplot){
+    tmp <- ggplot_gtable(ggplot_build(a.gplot))
+    leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+    legend <- tmp$grobs[[leg]]
+    legend
+}
+
+app_setup <- ggplot(gb_clusters, aes(x=agemn, y=1e3*outcome/follyr)) +
+    geom_point(aes(color=as.factor(bednet), shape=as.factor(bednet))) +
+    geom_hline(aes(yintercept=Y0bar), color=cbbPalette[2]) +
+    geom_hline(aes(yintercept=Y1bar), color=cbbPalette[3]) +
+    geom_linerange(aes(ymin=Y0bar, ymax=Y1bar, x=27.75), linetype="dotted") +
+    scale_x_continuous(expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")"))) +
+    scale_y_continuous(expression(paste("Child mortality rate, per 1,000 follow-up years (", italic(Y), ")"))) +
+    scale_color_manual("",
+                       values=cbbPalette[c(2,3)],
+                       labels=c(expression(paste("No bednets (", italic("A=0"),")")),
+                                expression(paste("Bednets (", italic("A=1"),")")))) +
+    scale_shape_manual("",
+                       values=c(16,17),
+                       labels=c(expression(paste("No bednets (", italic("A=0"),")")),
+                                expression(paste("Bednets (", italic("A=1"),")")))) +
+    ggtitle("a) Unadjusted estimate") +
+    theme_bw()+
+    theme(axis.text=element_text(size=12, color="black"),
+          axis.title=element_text(size=14),
+          legend.text=element_text(size=12),
+          legend.position="bottom",
+          legend.title=element_text(size=0))
+
+app_legend <- g_legend(app_setup)
+
+app_unadj <- ggplot(gb_clusters, aes(x=agemn, y=1e3*outcome/follyr)) +
+    geom_point(aes(color=as.factor(bednet), shape=as.factor(bednet)), alpha=0.6) +
+    geom_hline(aes(yintercept=Y0bar), color=cbbPalette[2]) +
+    geom_hline(aes(yintercept=Y1bar), color=cbbPalette[3]) +
+    geom_text(aes(x=27, y=Y0bar+2, label="E(Y|A=0)")) +
+    geom_text(aes(x=27, y=Y1bar-2, label="E(Y|A=1)")) +
+    geom_linerange(aes(ymin=Y0bar, ymax=Y1bar, x=27.75), linetype="dotted") +
+    scale_x_continuous("") +
+    scale_y_continuous(expression(paste("Child mortality rate (", italic(Y), ")",phantom(hat("Y"))))) +
+    scale_color_manual("", guide=F, values=cbbPalette[c(2,3)]) +
+    scale_shape_manual("", guide=F, values=c(16,17)) +
+    ggtitle("a) Unadjusted") +
+    theme_bw() +
+    theme(axis.text=element_text(size=10, color="black"),
+          axis.title=element_text(size=12),
+          title=element_text(size=12))
+@
+
+<<app-ipw, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
+gb_ipw <- gb_clusters %>%
+    mutate(Y=1e3*outcome/follyr,
+           Ahat=A_hat,
+           weight=ifelse(A==1, 1/Ahat, 1/(1-Ahat)),
+           Y_ipw=Y*weight)
+Ybar0_ipw <- mean(Y*(1-A)/(1-A_hat))
+Ybar1_ipw <- mean(Y*A/A_hat)
+app_ipw <- ggplot(gb_ipw, aes(x=agemn, y=Y)) +
+    geom_point(aes(color=as.factor(bednet), shape=as.factor(bednet), size=weight),
+               alpha=0.6) +
+    geom_hline(aes(yintercept=Ybar0_ipw), color=cbbPalette[2]) +
+    geom_hline(aes(yintercept=Ybar1_ipw), color=cbbPalette[3]) +
+    geom_text(aes(x=27, y=Ybar0_ipw+2, label="E(Y|A=0)")) +
+    geom_text(aes(x=27, y=Ybar1_ipw-2, label="E(Y|A=1)")) +
+    geom_linerange(aes(ymin=Ybar0_ipw, ymax=Ybar1_ipw, x=27.75), linetype="dotted") +
+    scale_x_continuous("") +
+    scale_y_continuous("") +
+    scale_color_manual("", guide=F, values=cbbPalette[c(2,3)]) +
+    scale_shape_manual("", guide=F, values=c(16,17)) +
+    scale_size_continuous("", guide=F) +
+    ggtitle("b) IPW") +
+    theme_bw() +
+    theme(axis.text=element_text(size=10, color="black"),
+          axis.title=element_text(size=12),
+          title=element_text(size=12))
+
+@
+
+<<app-care, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
+gb_care <- gb_ipw %>%
+    mutate(Yhat=1e3*preds/follyr)
+Y0bar_CARE <- mean(gb_care$Y[gb_care$bednet==0]-gb_care$Yhat[gb_care$bednet==0])
+Y1bar_CARE <- mean(gb_care$Y[gb_care$bednet==1]-gb_care$Yhat[gb_care$bednet==1])
+
+app_care <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
+    geom_point(aes(color=as.factor(bednet), shape=as.factor(bednet)), alpha=0.6) +
+    geom_hline(aes(yintercept=Y0bar_CARE), color=cbbPalette[2]) +
+    geom_hline(aes(yintercept=Y1bar_CARE), color=cbbPalette[3]) +
+    geom_text(aes(x=27, y=Y0bar_CARE+2, label="E(Y|A=0)")) +
+    geom_text(aes(x=27, y=Y1bar_CARE-2, label="E(Y|A=1)")) +
+    # geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
+    geom_linerange(aes(ymin=Y1bar_CARE, ymax=Y0bar_CARE, x=27.75),
+                   linetype="dotted") +
+    scale_x_continuous("") +
+    scale_y_continuous(expression(paste("Child mortality rate residual (", italic(paste("Y-", hat("Y"))), ")")),
+                       breaks=seq(-50,50,10)) +
+    scale_color_manual("", guide=F, values=cbbPalette[c(2,3)]) +
+    scale_shape_manual("", guide=F, values=c(16,17)) +
+    ggtitle("c) Covariate-adjusted residuals") +
+    theme_bw() +
+    theme(axis.text=element_text(size=10, color="black"),
+          axis.title=element_text(size=12),
+          title=element_text(size=12))
+
+# app_care <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
+#   geom_point(aes(color=as.factor(bednet))) +
+#   geom_hline(aes(yintercept=Y0bar_CARE), color=cbbPalette[2]) +
+#   geom_hline(aes(yintercept=Y1bar_CARE), color=cbbPalette[3]) +
+#   geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
+#   geom_linerange(aes(ymin=Y1bar_CARE, ymax=Y0bar_CARE, x=27.75), linetype="dotted") +
+#   scale_x_continuous(expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")"))) +
+#   scale_y_continuous(expression(paste("Child mortality rate residual, per 1,000 follow-up years  (", italic(paste("Y-", hat("Y"))), ")")),
+#                      breaks=seq(-50,50,10)) +
+#   scale_color_manual("",
+#                      values=cbbPalette[c(2,3)],
+#                      labels=c(expression(paste("No bednets (", italic("A=0"),")")),
+#                               expression(paste("Bednets (", italic("A=1"),")")))) +
+#   ggtitle("Covariate-adjusted residuals estimate") +
+#   theme_bw()+
+#   theme(axis.text=element_text(size=12, color="black"),
+#         axis.title=element_text(size=14),
+#         legend.text=element_text(size=12),
+#         legend.title=element_text(size=0),
+#         legend.position=c(0.85, 0.85),
+#         legend.background=element_rect(color="black"))
+
+@
+
+<<app-care-ipw, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
+Y0bar_CARE_IPW <- mean((gb_care$Y-gb_care$Yhat)*(1-gb_care$bednet)/(1-gb_care$Ahat))
+Y1bar_CARE_IPW <- mean((gb_care$Y-gb_care$Yhat)*gb_care$bednet/(gb_care$Ahat))
+app_care_ipw <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
+    geom_point(aes(color=as.factor(bednet), shape=as.factor(bednet), size=weight),
+               alpha=0.6) +
+    geom_hline(aes(yintercept=Y0bar_CARE_IPW), color=cbbPalette[2]) +
+    geom_hline(aes(yintercept=Y1bar_CARE_IPW), color=cbbPalette[3]) +
+    geom_text(aes(x=27, y=Y0bar_CARE_IPW+2, label="E(Y|A=0)")) +
+    geom_text(aes(x=27, y=Y1bar_CARE_IPW-2, label="E(Y|A=1)")) +
+    # geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
+    geom_linerange(aes(ymin=Y1bar_CARE_IPW, ymax=Y0bar_CARE_IPW, x=27.75),
+                   linetype="dotted") +
+    scale_x_continuous("") +
+    scale_color_manual("", guide=F, values=cbbPalette[c(2,3)]) +
+    scale_shape_manual("", guide=F, values=c(16,17)) +
+    scale_y_continuous("",
+                       breaks=seq(-50,50,10)) +
+    scale_size_continuous("", guide=F) +
+    ggtitle("d) CARE-IPW") +
+    theme_bw() +
+    theme(axis.text=element_text(size=10, color="black"),
+          axis.title=element_text(size=12),
+          title=element_text(size=12))
+
+# app_care_ipw <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
+#   geom_point(aes(color=as.factor(bednet), size=weight)) +
+#   geom_hline(aes(yintercept=Y0bar_CARE_IPW), color=cbbPalette[2]) +
+#   geom_hline(aes(yintercept=Y1bar_CARE_IPW), color=cbbPalette[3]) +
+#   geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
+#   geom_linerange(aes(ymin=Y1bar_CARE_IPW, ymax=Y0bar_CARE_IPW, x=27.75), linetype="dotted") +
+#   scale_x_continuous(expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")"))) +
+#   scale_color_manual("",
+#                      values=cbbPalette[c(2,3)],
+#                      labels=c(expression(paste("No bednets (", italic("A=0"),")")),
+#                               expression(paste("Bednets (", italic("A=1"),")")))) +
+#   scale_y_continuous(expression(paste("Child mortality rate residual, per 1,000 follow-up years (", italic(paste("Y-", hat("Y"))), ")")),
+#                      breaks=seq(-50,50,10)) +
+#   scale_size_continuous("", guide=F) +
+#   ggtitle("CARE-IPW estimate") +
+#   theme_bw()+
+#   theme(axis.text=element_text(size=12, color="black"),
+#         axis.title=element_text(size=14),
+#         legend.text=element_text(size=12),
+#         legend.title=element_text(size=0),
+#         legend.position=c(0.85, 0.85),
+#         legend.background=element_rect(color="black"))
+@
+
+<<big-app-fig, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
+grid.arrange(app_unadj, app_ipw, app_care, app_care_ipw, app_legend,
+             # bottom="Average cluster age, in months (W^Y)",
+             bottom=textGrob(label=expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")")), gp=gpar(fontsize=14)),
+             layout_matrix=rbind(c(5,5),c(1,2), c(3,4)),
+             heights=c(1,10,10))
+@
+
+<<ic-curves, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%', fig.cap="The estimates and 95\\% confidence intervals for the difference in childhood mortality rate per thousand person-years associated with the allocation of bednets. The four estimators used are the unadjusted estimator, the covariate-adjusted residuals estimator (CARE), the inverse-probability of treatment weighting estimator (IPW), and CARE with inverse-probability weighting (CARE--IPW). All estimates indicate that bednets caused a reduction in childhood mortality, though the CARE and CARE--IPW estimates are more precise than those of the unadjusted and IPW estimators.">>=
+IC_plot <- data_frame(cluster=gb_clusters$cluster,
+                      IC_CARE_IPW=IC_CARE_IPW,
+                      A=A,
+                      inc_rate=Y,
+                      pred_inc_rate=Y_hat)
+
+ggplot(data=IC_plot, aes(y=reorder(cluster, inc_rate))) +
+    geom_errorbarh(aes(x=IC_CARE_IPW, xmin=IC_CARE_IPW, xmax=0,
+                       color=as.factor(A))) +
+    geom_point(aes(x=IC_CARE_IPW), shape=4) +
+    geom_point(aes(x=0), shape=1) +
+    # facet_grid(A1~., scales="free_y", space="free_y",
+    # labeller=labeller(A1=labels)) +
+    scale_x_continuous("Difference between observed and forecasted\nDHF incidence rate, per 100,000 population") +
+    scale_y_discrete("Clusters sorted by forecasted DHF incidence rate", expand=c(0,1)) +
+    scale_color_manual("Treatment arm",
+                       labels=c("Control", "Intervention"),
+                       values=cbbPalette[c(6,7)]) +
+    theme_bw() +
+    theme(axis.text.y=element_blank(),
+          axis.ticks.y=element_blank(),
+          panel.grid.major.y=element_blank(),
+          axis.text.x=element_text(color="black", size=12),
+          axis.title=element_text(size=14),
+          legend.title=element_text(size=14),
+          legend.text=element_text(size=12),
+          legend.position=c(0.75, 0.25))
+@
+\end{document}

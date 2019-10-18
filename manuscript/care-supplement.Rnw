@@ -1,0 +1,86 @@
+\documentclass[aoas]{imsart}
+
+\usepackage[letterpaper, margin=1in]{geometry}
+\usepackage[OT1]{fontenc}
+\usepackage{amsthm,amsmath}
+\usepackage{natbib}
+\usepackage[colorlinks,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array}
+\usepackage{multirow}
+\bibliographystyle{apalike}
+\setcitestyle{open={[},authoryear,close={]}}
+% settings
+%\pubyear{2005}
+%\volume{0}
+%\issue{0}
+%\firstpage{1}
+%\lastpage{8}
+%\arxiv{arXiv:0000.0000}
+
+\startlocaldefs
+\newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
+    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+    \copy0\kern-\wd0\mkern4mu\box0}}
+\endlocaldefs
+
+\begin{document}
+
+\begin{frontmatter}
+\title{Supplement to the covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
+\runtitle{Supplement for the covariate-adjusted residual estimator}
+
+\begin{aug}
+\author{\fnms{Stephen A.} \snm{Lauer}\thanksref{t1}\ead[label=e1]{slauer5@jh.edu}},
+\author{\fnms{Nicholas G.} \snm{Reich}\thanksref{t2}\ead[label=e2]{nick@schoolph.umass.edu}}
+\and
+\author{\fnms{Laura B.} \snm{Balzer}\thanksref{t2}\ead[label=e3]{lbalzer@schoolph.umass.edu}}
+\runauthor{Lauer, Reich, \& Balzer}
+
+\affiliation{Johns Hopkins Bloomberg School of Public Health\thanksmark{t1} and University of Massachusetts, Amherst\thanksmark{t2}}
+
+\address{
+S.A. Lauer \\
+Department of Epidemiology \\
+Bloomberg School of Public Health \\
+Johns Hopkins University \\
+Baltimore, MD 21205 \\
+United States of America \\
+\printead{e1}
+}
+
+\address{
+N.G. Reich \\
+L.B. Balzer \\
+Department of Biostatistics and Epidemiology \\
+School of Public Health and Health Sciences \\
+University of Massachusetts \\
+Amherst, MA, 01003 \\
+United States of America \\
+\printead{e2}\\
+\phantom{E-mail:\ }\printead*{e3}
+}
+\end{aug}
+
+\end{frontmatter}
+
+\begin{figure}[H]
+\includegraphics[width=0.5\textwidth]{figure/rct-diagram-u.pdf}
+\includegraphics[width=0.5\textwidth]{figure/obs-diagram-u.pdf}
+\caption{
+Causal diagrams for randomized trials \textbf{(a)} and observational studies \textbf{(b)} including measured and unmeasured covariates.
+These diagrams give us a visual representation of the relationships between the variables in a causal model.
+Arrows are drawn from a cause to an effect; dashed double-sided arrows indicate an unknown or unmeasured relationship.
+In a randomized setting, the exposure of interest ($A$) is independent of all other variables and the outcome of interest ($Y$) is influenced by both $A$ and a set of other covariates ($W^Y$).
+Randomization also guarantees that the unmeasured factors influencing $A$ ($U_A$) are independent of the unmeasured factors influencing $W^Y$ ($U_{W^Y}$) and $Y$ ($U_Y$).
+In an observational setting, $A$ is no longer randomized, but instead influenced by other covariates.
+Some of these covariates ($W^C$) also influence $Y$, thus confounding the relationship between $A$ and $Y$.
+Other covariates ($W^A$) only influence $A$ and not $Y$.
+Without randomization any of the unmeasured covariates may have a relationship with any of the other unmeasured covariates, as indicated by the dashed arrows around the perimeter of the diagram.
+}
+\label{fig:dag-u}
+\end{figure}
+
+\end{document}

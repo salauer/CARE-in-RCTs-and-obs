@@ -1,0 +1,28 @@
+^TRIAL OF IMPREGNATED BEDNETS IN GHANA^
+
+A cluster randomised trial was carried out in Northern Ghana to measure the 
+impact of impregnated bednets on child mortality. The study area was divided 
+into 96 clusters and 48 were randomly selected to receive impregnated bednets. 
+A demographic surveillance system was set up to record births, deaths and 
+migrations. Follow-up continued for two years. The dataset contains data on 
+children aged 6-59 months and shows whether the child died during follow-up and
+their person-years of follow-up.
+
+   ^cluster^    cluster number: 1-96
+   ^bednet^     treatment arm: 0=control, 1=intervention
+   ^agemn^      age at enrolment in months
+   ^outcome^    child died: 0=no, 1=yes
+   ^follyr^     person-years of follow-up
+   ^agegp^      age-group at enrolment: 0=6-11m, 1=1y, 2=2y, 3=3y, 4=4y
+   ^sex^        sex: 0=male, 1=female
+   ^idno^       child number
+
+^References^
+
+Hayes RJ, Moulton LH. ^Cluster Randomised Trials, 2nd Edition.^  Chapman & Hall/CRC 2017;
+Boca Raton, FL.
+
+Binka FN, Kubaje A, Adjuik M et al. Impact of permethrin impregnated bednets
+on child mortality in Kassena-Nankana district, Ghana: a randomized controlled 
+trial. Tropical Medicine and International Health 1996; 1: 147-154.
+
