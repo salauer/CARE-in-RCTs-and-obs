@@ -4,8 +4,10 @@ library(MASS)
 library(dplyr)
 library(tidyr)
 library(doMC)
-registerDoMC(15)
-source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
+library(here)
+registerDoMC()
+setwd(here::here())
+source("code/CARE-utilities.R")
 
 set.seed(1)
 
@@ -109,4 +111,4 @@ est_true_false %>%
 
 sim_est <- bind_rows(est_false_true, est_false_false, est_true_false, est_true_true)
 
-saveRDS(sim_est, file=paste0("CARE-paper/data/simulation-output/sim-output-", Sys.Date(), ".rds"))
+saveRDS(sim_est, file=paste0("data/simulation-output/sim-output-", Sys.Date(), ".rds"))

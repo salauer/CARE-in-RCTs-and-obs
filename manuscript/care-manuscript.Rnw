@@ -60,11 +60,11 @@ opts_knit$set(root.dir = here::here())
 @
 
 <<load, include=FALSE>>=
-source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
+source("code/CARE-utilities.R")
 population_n <- 100000
 
 est_sim <- readRDS(find_recent_file(name_start="sim-output",
-                                path="CARE-paper/data/simulation-output/")) %>%
+                                path="data/simulation-output/")) %>%
     mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
 
 evaluation_sim <- est_sim %>%
@@ -99,7 +99,7 @@ Ybar0_effect <- mean(population_data_effect$Y0)
 PATE_effect <- Ybar0_effect-Ybar1_effect
 rm(population_data_effect)
 
-app_data <- read.csv("CARE-paper/data/app-output.csv")
+app_data <- read.csv("data/app-output.csv")
 @
 
 \begin{frontmatter}
@@ -209,7 +209,7 @@ Answering the causal question requires a deeper understanding of the system that
 
 Several conceptual and analytic frameworks exist and can guide our answering of causally motivated questions.\citep{Neyman1923, Rubin1974, Robins1986, Rubin1990, Holland1986, Spirtes1993, Pearl2009, Robins2009, Richardson2013swig,Petersen2014, balzer_tutorial_2016,  Hernan2016}.
 Here, we review the Causal Roadmap of \cite{Petersen2014} and use the bednet example for illustration.
-The key steps of the Causal Roadmap are representing knowledge of the data generating process (represented by a \textit{causal model}); specifying the quantity that answers the scientific question (the \textit{causal parameter}); evaluating the assumptions required to link the causal quantity to a well-defined function of the observed data distribution (the \textit{statistical parameter} which may or may not be \textit{identifiable}); and finally obtaining a point estimate and inference of the statistical parameter.%\citep{Pearl1988, Pearl2009, Pearl2010, Petersen2014}
+The key steps of the Causal Roadmap are representing knowledge of the data generating process (represented by a \textit{causal model}); specifying the quantity that answers the scientific question (the \textit{causal parameter}); evaluating the assumptions required to link the causal quantity to a well-defined function of the observed data distribution (the \textit{statistical parameter} which may or may not be \textit{identifiable}); and finally obtaining a point estimate and inference of the statistical parameter.
 
 \begin{figure}
 \includegraphics[width=0.49\textwidth]{figure/rct-diagram.jpeg}
@@ -245,9 +245,9 @@ Thus mosquito abundance is a confounding covariate, as it is a common cause of b
 With the causal model specified, we can translate our scientific question into a causal parameter.
 We assume that the relationships within the causal model are autonomous, meaning that changing one relationship does not change the other relationships, although changes may result in different effects downstream.\citep{Pearl2009,Pearl2010}
 Therefore, we could modify the way in which the exposure is generated and see resulting changes in the outcome.
-Specifically, we could intervene to give impregnated bednets to a cluster (i.e. set $A=1$) %, leaving the other relationships the same,
+Specifically, we could intervene to give impregnated bednets to a cluster (i.e. set $A=1$)
 and generate the counterfactual (potential) outcome $Y(1)$ for that cluster.
-Likewise, we could intervene to put the same cluster in the unexposed group (i.e. set $A=0)$ %, leaving the other relationships the same,
+Likewise, we could intervene to put the same cluster in the unexposed group (i.e. set $A=0)$
 and generate the counterfactual (potential) outcome $Y(0)$ for that cluster.
 With these counterfactual outcomes, we translate this scientific question into a well-defined causal quantity, specifically the average treatment effect (ATE):
 \begin{align}
@@ -312,31 +312,11 @@ Despite randomization, we found that the estimated propensity scores ranged from
 In the study, younger clusters were, by chance, more likely to receive the bednet intervention than older clusters.
 When obtaining a point estimate by taking the average difference in weighted outcomes, intervention clusters with higher average ages were assigned greater weight, as are control clusters with lower average ages (Figure \ref{fig:example}b).
 
-% \begin{figure}[hbt!]
-% \includegraphics[width=0.49\textwidth]{figure/rct-unadj.pdf}
-% \includegraphics[width=0.49\textwidth]{figure/rct-care.pdf}
-% \includegraphics[width=0.49\textwidth]{figure/obs-iptw.pdf}
-% \includegraphics[width=0.49\textwidth]{figure/obs-care-ipw.pdf}
-% \caption{
-% Diagrams that indicate which covariates are used by each estimator.
-% \textbf{(a)} The unadjusted estimator does not use any covariates and only compares the average outcome $Y$ between exposure levels $A=0$ and $A=1$.
-% The unadjusted estimator is consistent for the target statistical parameter in randomized settings $\Psi^{RCT}(\mathbb{P})$ (shown), but not observational settings.
-% \textbf{(b)} The covariate-adjusted residuals estimator (CARE) incorporates baseline covariates to make predictions for the outcome $\hat{\mathbb{E}}(Y \mid W^Y=w^Y)$.
-% If these baseline covariates are predictive of the outcome and imbalanced between exposure levels, then CARE should be more efficient than the unadjusted estimator in randomized settings.
-% CARE is not consistent for $\Psi$ in observational settings with an exposure effect.
-% \textbf{(c)} The inverse probability weighting (IPW) estimator is consistent for $\Psi$ when its propensity scores $\hat{\mathbb{P}}(A=1 \mid W^C=w^C)$ are consistently estimated in observational settings.
-% \textbf{(d)} When CARE is augmented by inverse probability weighting (CARE--IPW), it is consistent for $\Psi$ when its propensity scores $\hat{\mathbb{P}}(A=1 \mid W^C=w^C)$ are consistently estimated.
-% CARE--IPW may be more efficient than the IPW estimator when accounting for $W^C$ in its predictions of the outcome $\hat{\mathbb{E}}(Y \mid W^C=w^C)$.
-% }
-% \label{fig:dag-est}
-% \end{figure}
-
 \section{The covariate-adjusted residuals estimator (CARE)}
 \label{sec:care}
 
 The covariate-adjusted residuals estimator (CARE) was proposed as a method to estimate the ATE in randomized trials.\citep{Gail1996, Bennett2002, Hayes2009}
 First, the outcome $Y$ is  predicted using only the baseline covariates $W^Y$ and not the exposure $A$, giving us predicted values $\hat{\mathbb{E}}(Y \mid W^Y)$.
-%In practice, this prediction has relied on parametric regression models {\color{red}[LB: Steve; please confirm]}.
 Next, residuals are derived as the difference between the observed outcome and the predicted one.
 Finally, the difference in the average residuals between exposure groups provides a point estimate:
 \begin{align}
@@ -387,7 +367,6 @@ For this expectation to be zero, we would need the residual difference between t
 There is no reason to believe this would generally be the case.
 Instead, we can only expect this to hold under the strong null, where $\psi^{obs}=0$ and $\mathbb{E}(Y \mid A, W^C) = \mathbb{E}(Y \mid W^C)$.
 When the null is false (i.e. there is an exposure effect), there might also be scenarios where we get some bias cancellation, but this cannot be proven under a non-parametric statistical model.
-%Thus, we conclude that CARE is generally \textbf{not} an unbiased for $\psi^{obs}$, even if the covariates $W^C$, which are sufficient to control for confounding, are used to predict the outcome.
 Thus, CARE is only guaranteed to be a consistent estimator of $\Psi^{obs}(\mathbb{P})$ when the null is true and conditional mean outcome $\mathbb{E}(Y \mid A, W^C) = \mathbb{E}(Y \mid W^C)$ is consistently estimated.
 Since we do not know \textit{a priori} whether or not the null hypothesis is true (which is presumably why we are trying to estimate the exposure effect), we do not recommend that CARE be used in observational settings.
 
@@ -428,8 +407,6 @@ CARE--IPW requires estimation of both the propensity score $\mathbb{P}(A=1 \mid 
 CARE--IPW is consistent when the propensity score $\mathbb{P}(A=1 \mid W^C)$ is consistently estimated, or when the null is true and conditional mean outcome $\mathbb{E}(Y \mid A, W^C) = \mathbb{E}(Y \mid W^C)$ is consistently estimated.
 Under regularity conditions,\citep{Rose2011, Kennedy2017} the Central Limit Theorem applies, and CARE--IPW is asymptotically normal with variance well-approximated by the sample variance of $\hat{D}^*(O;\hat{\psi}^{CARE-IPW})$ divided by sample size $n$.
 By predicting the outcome with the covariates $\hat{\mathbb{E}}(Y \mid W^C)$, we expect CARE-IPW to provide efficiency gains over the IPW estimator.
- %{\color{red}[LB: think this is only the case, if we use different adjustment sets for $E(Y|W^C)$ and $P(A|W^C)$]}
-%{\color{purple} [SL: if the adjustment sets for $E(Y|W^C)$ and $P(A|W^C)$ have to be different but $\mathbb{P}(A=1 \mid W^C)$ has to be consistently estimated for CARE--IPW to be consistent, then doesn't that mean that to get efficiency gains we would lose consistency? Maybe the adjustment set should be restricted to $E(Y|W^Y)$]}
 
 Each of the estimators described in this paper can be characterized as special cases of CARE--IPW.
 CARE--IPW reduces to CARE when the propensity scores are estimated with the empirical probability of exposure.
@@ -552,13 +529,7 @@ Hayes and Moulton used a $t$-test to generate confidence intervals and conduct h
 We reproduce this analysis and extend it to include IPW and CARE--IPW (Figure \ref{fig:example}b,d).
 While our point estimates of the ATE for CARE and the unadjusted estimator are identical to those in Hayes and Moulton, we estimate the variance using influence curve-based methods (Sections \ref{sec:care}-\ref{sec:care-ipw}), which yield slightly different confidence intervals and \textit{p}-values.
 The IPW and CARE--IPW estimators require propensity scores, which we estimate with a main terms logistic regression for the exposure at the cluster-level using average age in months and percent of children who are female as covariates.
-%These covariates may be relevant as younger children are more vulnerable than older children, and young males typically have higher mortality rates than young females. {\color{red}[cite]}
 For CARE--IPW, we use the same predicted values of the outcome from the individual-level regression as used for CARE.
-%We estimate the average treatment effect and variance for CARE--IPW and the IPW estimator using the methods outlined in Section \ref{sec:care-ipw}.
-
-% All estimates are for the target statistical parameter $\Psi$.
-% The positivity and randomization assumptions hold by the design of the cluster randomized trial, however it is unclear whether the assumption of no interference between units is satisfied.
-% Therefore, in order for $\Psi$ to identify the average treatment effect, we need to assume that the childhood mortality in each cluster is independent of the assignment to bednets and childhood mortality in the other clusters.
 
 \subsection{Results}
 
@@ -606,10 +577,6 @@ Specifically, we prove that CARE is consistent for the average treatment effect 
 We also prove that CARE is not consistent for the ATE in most observational settings of interest (e.g. when there is an exposure effect).
 We develop a new estimator, CARE--IPW, which is consistent for the ATE in observational settings when the propensity scores are consistently estimated.
 
-%The unadjusted estimator, the inverse probability weighting (IPW) estimator, and CARE can all be considered special cases of CARE--IPW.
-%In a randomized trial, we would expect CARE to be more efficient than the unadjusted estimator when the predictions for the outcome account for predictive covariates that are imbalanced between exposure levels.
-%{\color{red}[LB - what do we expect about CARE-IPW]}
-
 The simulation study supports our theoretical findings and suggests some advantages to using CARE--IPW rather than CARE or the IPW estimator.
 In randomized trials, CARE and CARE--IPW achieved greater precision and statistical power, compared to the other estimators, and  maintained nominal confidence interval coverage.
 In observational settings, CARE--IPW is consistent for the statistical parameter $\Psi^{obs}(\mathbb{P})$ when accounting for the confounding covariates in the propensity score model and has greater statistical power and less variability than the IPW estimator.
@@ -619,11 +586,10 @@ While CARE--IPW improves on CARE and IPW, it is not a ``double robust estimator'
 robins2000robust, vanderLaan2003, VanderLaan2006, MarkBook}
 A double robust estimator is consistent for $\Psi^{obs}(\mathbb{P})$ if either the outcome predictions (which often include the exposure as well as baseline covariates) or the propensity scores is consistently estimated and is the most efficient estimator if both are.
 Similar to the IPW estimator, CARE--IPW is consistent for if and only if the propensity score is consistently estimated.
-By incorporating predictions of the outcome, CARE--IPW is expected to be more efficient than IPW.%improves efficiency over the IPW estimator by making predictions of the outcome.
+By incorporating predictions of the outcome, CARE--IPW is expected to be more efficient than IPW.
 
 One advantage to using CARE--IPW rather than another method is that researchers do not need to specify the relationship between the exposure and the outcome.
 This can be beneficial when there is a complex relationship between the exposure and outcome, such as multiple non-linear interactions with other covariates that augment the strength of the exposure.
-% {\color{red}[LB: although one way around this (and often recommend in RCT) is to fully stratify on the exposure]}
 
 As with the IPW estimator, CARE--IPW may have stability issues when estimated propensity scores approach zero or one.\citep{Petersen2010}
 This could be resolved in one of a couple ways.
@@ -631,7 +597,7 @@ Stabilized weights could be used to scale propensity scores away from zero and o
 Alternatively, propensity scores could be replaced by incremental propensity scores which relax the positivity assumption by looking at the effect of an intervention when propensity scores are uniformly increased and decreased across all observations.\citep{Kennedy2018}
 
 The findings of this paper suggest that CARE is suitable for use in estimating the average treatment effect in randomized trials, but not in observational settings.
-As an alternative to CARE, CARE--IPW has potential for use as an estimator in observational settings; further research is warranted.%, though more research is required to investigate its performance in different situations relative to other estimators.
+As an alternative to CARE, CARE--IPW has potential for use as an estimator in observational settings; further research is warranted.
 
 \appendix
 
@@ -755,7 +721,6 @@ The first component of the expectation is equivalent to the IPW estimand and equ
 	&= \mathbb{E}_{W^C} \Big [ \mathbb{E}(Y \mid A=1, W^C) - \mathbb{E}(Y \mid A=0, W^C) \Big] \\
 	&= \psi^{obs}
 \end{align*}
-%where summations generalize to integrals for continuous random variables here and throughout.
 
 The second component of the expectation is 0:
 \begin{align*}

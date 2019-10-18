@@ -21,14 +21,14 @@ opts_knit$set(root.dir = here::here())
 @
 
 <<load, include=FALSE>>=
-source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
+source("code/CARE-utilities.R")
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 
 ## read in bednet data
-ghana_bednet_data <- read_table2("CARE-paper/data/dataverse_files/ghana_bednet.tab")
+ghana_bednet_data <- read_table2("data/dataverse_files/ghana_bednet.tab")
 
 est <- readRDS(find_recent_file(name_start="sim-output",
-                                path="CARE-paper/data/simulation-output/")) %>%
+                                path="data/simulation-output/")) %>%
     mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
 
 evaluation_dat <- est %>%
@@ -88,7 +88,7 @@ print(xtable(sim_table, align="llllrrrb{1.25cm}b{1.2cm}",
       sanitize.text.function = identity)
 @
 
-<<application-plot, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=0.5, out.width='100%', fig.cap="The estimates and 95\\% confidence intervals for the difference in childhood mortality rate per thousand person-years associated with the allocation of bednets. The four estimators used are the unadjusted estimator, the covariate-adjusted residuals estimator (CARE), the inverse-probability of treatment weighting estimator (IPW), and CARE with inverse-probability weighting (CARE--IPW). All estimates indicate that bednets caused a reduction in childhood mortality, though the CARE and CARE--IPW estimates are more precise than those of the unadjusted and IPW estimators.">>=
+<<application-plot, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=0.5, out.width='100%'>>=
 
 ## fit Poisson model for outcome as in Hayes and Moulton
 bednet_glm <- glm(outcome~as.factor(agegp)+as.factor(sex)+offset(log(follyr)),
@@ -192,7 +192,7 @@ plot_dat <- tibble(name=c("Unadjusted",
                                 p_IPW,
                                 p_CARE,
                                 p_CARE_IPW),2))
-write.csv(plot_dat, "CARE-paper/data/app-output.csv")
+write.csv(plot_dat, "data/app-output.csv")
 
 ggplot(data=plot_dat, aes(y=name, x=estimate)) +
     geom_vline(aes(xintercept=0), linetype="dashed") +
@@ -314,29 +314,6 @@ app_care <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
     theme(axis.text=element_text(size=10, color="black"),
           axis.title=element_text(size=12),
           title=element_text(size=12))
-
-# app_care <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
-#   geom_point(aes(color=as.factor(bednet))) +
-#   geom_hline(aes(yintercept=Y0bar_CARE), color=cbbPalette[2]) +
-#   geom_hline(aes(yintercept=Y1bar_CARE), color=cbbPalette[3]) +
-#   geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
-#   geom_linerange(aes(ymin=Y1bar_CARE, ymax=Y0bar_CARE, x=27.75), linetype="dotted") +
-#   scale_x_continuous(expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")"))) +
-#   scale_y_continuous(expression(paste("Child mortality rate residual, per 1,000 follow-up years  (", italic(paste("Y-", hat("Y"))), ")")),
-#                      breaks=seq(-50,50,10)) +
-#   scale_color_manual("",
-#                      values=cbbPalette[c(2,3)],
-#                      labels=c(expression(paste("No bednets (", italic("A=0"),")")),
-#                               expression(paste("Bednets (", italic("A=1"),")")))) +
-#   ggtitle("Covariate-adjusted residuals estimate") +
-#   theme_bw()+
-#   theme(axis.text=element_text(size=12, color="black"),
-#         axis.title=element_text(size=14),
-#         legend.text=element_text(size=12),
-#         legend.title=element_text(size=0),
-#         legend.position=c(0.85, 0.85),
-#         legend.background=element_rect(color="black"))
-
 @
 
 <<app-care-ipw, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
@@ -363,29 +340,6 @@ app_care_ipw <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
     theme(axis.text=element_text(size=10, color="black"),
           axis.title=element_text(size=12),
           title=element_text(size=12))
-
-# app_care_ipw <- ggplot(gb_care, aes(x=agemn, y=Y-Yhat)) +
-#   geom_point(aes(color=as.factor(bednet), size=weight)) +
-#   geom_hline(aes(yintercept=Y0bar_CARE_IPW), color=cbbPalette[2]) +
-#   geom_hline(aes(yintercept=Y1bar_CARE_IPW), color=cbbPalette[3]) +
-#   geom_hline(aes(yintercept=0), color=cbbPalette[4], linetype="dashed") +
-#   geom_linerange(aes(ymin=Y1bar_CARE_IPW, ymax=Y0bar_CARE_IPW, x=27.75), linetype="dotted") +
-#   scale_x_continuous(expression(paste("Average cluster age, in months (", italic("W"^"Y"), ")"))) +
-#   scale_color_manual("",
-#                      values=cbbPalette[c(2,3)],
-#                      labels=c(expression(paste("No bednets (", italic("A=0"),")")),
-#                               expression(paste("Bednets (", italic("A=1"),")")))) +
-#   scale_y_continuous(expression(paste("Child mortality rate residual, per 1,000 follow-up years (", italic(paste("Y-", hat("Y"))), ")")),
-#                      breaks=seq(-50,50,10)) +
-#   scale_size_continuous("", guide=F) +
-#   ggtitle("CARE-IPW estimate") +
-#   theme_bw()+
-#   theme(axis.text=element_text(size=12, color="black"),
-#         axis.title=element_text(size=14),
-#         legend.text=element_text(size=12),
-#         legend.title=element_text(size=0),
-#         legend.position=c(0.85, 0.85),
-#         legend.background=element_rect(color="black"))
 @
 
 <<big-app-fig, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
@@ -396,7 +350,7 @@ grid.arrange(app_unadj, app_ipw, app_care, app_care_ipw, app_legend,
              heights=c(1,10,10))
 @
 
-<<ic-curves, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%', fig.cap="The estimates and 95\\% confidence intervals for the difference in childhood mortality rate per thousand person-years associated with the allocation of bednets. The four estimators used are the unadjusted estimator, the covariate-adjusted residuals estimator (CARE), the inverse-probability of treatment weighting estimator (IPW), and CARE with inverse-probability weighting (CARE--IPW). All estimates indicate that bednets caused a reduction in childhood mortality, though the CARE and CARE--IPW estimates are more precise than those of the unadjusted and IPW estimators.">>=
+<<ic-curves, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
 IC_plot <- data_frame(cluster=gb_clusters$cluster,
                       IC_CARE_IPW=IC_CARE_IPW,
                       A=A,
