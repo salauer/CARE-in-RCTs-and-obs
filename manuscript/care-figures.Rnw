@@ -29,6 +29,7 @@ ghana_bednet_data <- read_table2("data/dataverse_files/ghana_bednet.tab")
 
 est <- readRDS(find_recent_file(name_start="sim-output",
                                 path="data/simulation-output/")) %>%
+    rename(ATE=PATE) %>%
     mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
 
 evaluation_dat <- est %>%
@@ -350,33 +351,4 @@ grid.arrange(app_unadj, app_ipw, app_care, app_care_ipw, app_legend,
              heights=c(1,10,10))
 @
 
-<<ic-curves, echo=FALSE, warning=FALSE, message=FALSE, fig.asp=1, out.width='100%'>>=
-IC_plot <- data_frame(cluster=gb_clusters$cluster,
-                      IC_CARE_IPW=IC_CARE_IPW,
-                      A=A,
-                      inc_rate=Y,
-                      pred_inc_rate=Y_hat)
-
-ggplot(data=IC_plot, aes(y=reorder(cluster, inc_rate))) +
-    geom_errorbarh(aes(x=IC_CARE_IPW, xmin=IC_CARE_IPW, xmax=0,
-                       color=as.factor(A))) +
-    geom_point(aes(x=IC_CARE_IPW), shape=4) +
-    geom_point(aes(x=0), shape=1) +
-    # facet_grid(A1~., scales="free_y", space="free_y",
-    # labeller=labeller(A1=labels)) +
-    scale_x_continuous("Difference between observed and forecasted\nDHF incidence rate, per 100,000 population") +
-    scale_y_discrete("Clusters sorted by forecasted DHF incidence rate", expand=c(0,1)) +
-    scale_color_manual("Treatment arm",
-                       labels=c("Control", "Intervention"),
-                       values=cbbPalette[c(6,7)]) +
-    theme_bw() +
-    theme(axis.text.y=element_blank(),
-          axis.ticks.y=element_blank(),
-          panel.grid.major.y=element_blank(),
-          axis.text.x=element_text(color="black", size=12),
-          axis.title=element_text(size=14),
-          legend.title=element_text(size=14),
-          legend.text=element_text(size=12),
-          legend.position=c(0.75, 0.25))
-@
 \end{document}
