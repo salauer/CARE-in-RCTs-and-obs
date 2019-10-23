@@ -1,70 +1,71 @@
-\documentclass[aoas]{imsart}
+\documentclass{article}
 
-\usepackage[letterpaper, margin=1in]{geometry}
-\usepackage[OT1]{fontenc}
-\usepackage{amsthm,amsmath}
-\usepackage{natbib}
-\usepackage[colorlinks,citecolor=blue,urlcolor=blue]{hyperref}
-\usepackage{amsfonts}
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{multirow}
+\usepackage{cite}
+\bibliographystyle{unsrt}
+%% Sets page size and margins
+
+%% Useful packages
+
+\usepackage{arxiv}
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+
+\usepackage{amsmath}
 \usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
 \usepackage{float}
 \usepackage{array}
-\usepackage{multirow}
-\bibliographystyle{apalike}
-\setcitestyle{open={[},authoryear,close={]}}
-% settings
-%\pubyear{2005}
-%\volume{0}
-%\issue{0}
-%\firstpage{1}
-%\lastpage{8}
-%\arxiv{arXiv:0000.0000}
 
-\startlocaldefs
+% LB  added the following
 \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
     \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
     \copy0\kern-\wd0\mkern4mu\box0}}
-\endlocaldefs
+
+\title{Supplement to the covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
+\author{Stephen A. Lauer$^1$, Nicholas G. Reich$^2$, and Laura B. Balzer$^2$}
+\author{
+  Stephen A.~Lauer \\
+  Department of Epidemiology\\
+  Bloomberg School of Public Health\\
+  Johns Hopkins University \\
+  Baltimore, MD 21205 \\
+  \texttt{slauer5@jh.edu} \\
+  %% examples of more authors
+  \AND
+  Nicholas G.~Reich \\
+  Department of Biostatistics\\
+  University of Massachusetts \\
+  Amherst, MA 01003\\
+  \texttt{nick@schoolph.umass.edu} \\
+  \AND
+  Laura B.~Balzer \\
+  Department of Biostatistics\\
+  University of Massachusetts \\
+  Amherst, MA 01003\\
+  \texttt{lbalzer@schoolph.umass.edu} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+}
 
 \begin{document}
-
-\begin{frontmatter}
-\title{Supplement to the covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
-\runtitle{Supplement for the covariate-adjusted residual estimator}
-
-\begin{aug}
-\author{\fnms{Stephen A.} \snm{Lauer}\thanksref{t1}\ead[label=e1]{slauer5@jh.edu}},
-\author{\fnms{Nicholas G.} \snm{Reich}\thanksref{t2}\ead[label=e2]{nick@schoolph.umass.edu}}
-\and
-\author{\fnms{Laura B.} \snm{Balzer}\thanksref{t2}\ead[label=e3]{lbalzer@schoolph.umass.edu}}
-\runauthor{Lauer, Reich, \& Balzer}
-
-\affiliation{Johns Hopkins Bloomberg School of Public Health\thanksmark{t1} and University of Massachusetts, Amherst\thanksmark{t2}}
-
-\address{
-S.A. Lauer \\
-Department of Epidemiology \\
-Bloomberg School of Public Health \\
-Johns Hopkins University \\
-Baltimore, MD 21205 \\
-United States of America \\
-\printead{e1}
-}
-
-\address{
-N.G. Reich \\
-L.B. Balzer \\
-Department of Biostatistics and Epidemiology \\
-School of Public Health and Health Sciences \\
-University of Massachusetts \\
-Amherst, MA, 01003 \\
-United States of America \\
-\printead{e2}\\
-\phantom{E-mail:\ }\printead*{e3}
-}
-\end{aug}
-
-\end{frontmatter}
 
 \begin{figure}[H]
 \includegraphics[width=0.5\textwidth]{figure/rct-diagram-u.pdf}

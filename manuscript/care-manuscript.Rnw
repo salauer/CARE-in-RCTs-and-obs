@@ -1,55 +1,72 @@
-\documentclass[aoas]{imsart}\usepackage[]{graphicx}\usepackage[]{color}
-%% maxwidth is the original width if it is less than linewidth
-%% otherwise use linewidth (to make sure the graphics do not exceed the margin)
-\makeatletter
-\def\maxwidth{ %
-  \ifdim\Gin@nat@width>\linewidth
-    \linewidth
-  \else
-    \Gin@nat@width
-  \fi
-}
-\makeatother
+\documentclass{article}
 
-\definecolor{fgcolor}{rgb}{0.345, 0.345, 0.345}
+%% Language and font encodings
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{multirow}
+\usepackage{cite}
+\bibliographystyle{unsrt}
+%% Sets page size and margins
 
-\usepackage{framed}
-\makeatletter
-\usepackage{alltt}
+%% Useful packages
 
-\usepackage[letterpaper, margin=1in]{geometry}
-\usepackage[OT1]{fontenc}
-\usepackage{amsthm,amsmath}
-\usepackage{natbib}
-\usepackage[colorlinks,citecolor=blue,urlcolor=blue]{hyperref}
-\usepackage{amsfonts}
+\usepackage{arxiv}
+\usepackage{hyperref}       % hyperlinks
+\usepackage{url}            % simple URL typesetting
+\usepackage{booktabs}       % professional-quality tables
+\usepackage{amsfonts}       % blackboard math symbols
+\usepackage{nicefrac}       % compact symbols for 1/2, etc.
+\usepackage{microtype}      % microtypography
+\usepackage{lipsum}
+
+\usepackage{amsmath}
 \usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
 \usepackage{float}
 \usepackage{array}
-\usepackage{multirow}
-\usepackage{xcolor}
-\usepackage{caption}
-\captionsetup{singlelinecheck=off,labelfont=bf,labelsep=space}
-\bibliographystyle{apalike}
-\setcitestyle{open={[},authoryear,close={]}}
-% settings
-%\pubyear{2005}
-%\volume{0}
-%\issue{0}
-%\firstpage{1}
-%\lastpage{8}
-%\arxiv{arXiv:0000.0000}
 
-\startlocaldefs
+% LB  added the following
 \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
     \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
     \copy0\kern-\wd0\mkern4mu\box0}}
 
-  %\numberwithin{equation}{section}
-\theoremstyle{plain}
-\newtheorem{thm}{Theorem}[section]
-\endlocaldefs
-\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\title{The covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
+\author{Stephen A. Lauer$^1$, Nicholas G. Reich$^2$, and Laura B. Balzer$^2$}
+\author{
+  Stephen A.~Lauer \\
+  Department of Epidemiology\\
+  Bloomberg School of Public Health\\
+  Johns Hopkins University \\
+  Baltimore, MD 21205 \\
+  \texttt{slauer5@jh.edu} \\
+  %% examples of more authors
+  \AND
+  Nicholas G.~Reich \\
+  Department of Biostatistics\\
+  University of Massachusetts \\
+  Amherst, MA 01003\\
+  \texttt{nick@schoolph.umass.edu} \\
+  \AND
+  Laura B.~Balzer \\
+  Department of Biostatistics\\
+  University of Massachusetts \\
+  Amherst, MA 01003\\
+  \texttt{lbalzer@schoolph.umass.edu} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+  %% \And
+  %% Coauthor \\
+  %% Affiliation \\
+  %% Address \\
+  %% \texttt{email} \\
+}
+
+
+
 \begin{document}
 
 <<opts, include=FALSE>>=
@@ -60,12 +77,47 @@ opts_knit$set(root.dir = here::here())
 @
 
 <<load, include=FALSE>>=
-source("code/CARE-utilities.R")
+source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
 population_n <- 100000
 
+est <- readRDS(find_recent_file(name_start="sim-output",
+                                path="CARE-paper/data/simulation-output/"))
+
+evaluation_dat <- est %>%
+    group_by(trial, PATE, y_formula, a_formula, name) %>%
+    summarise(ave = mean(pt),
+              bias = mean(pt - PATE),
+              abs_bias = abs(mean(pt - PATE)),
+              mc_var = var(pt),
+              mc_se=sqrt(mc_var),
+              est_var = mean(se^2),
+              est_se=mean(se),
+              emp_unbias = abs_bias-1.96*mc_se<0,
+              mse = mean((pt - PATE)^2),
+              mae = mean(abs(pt - PATE)),
+              coverage = mean(cover),
+              pwr=mean(reject[PATE!=0]),
+              type1_err = mean(reject[PATE==0])) %>%
+    ungroup() %>%
+    mutate(y_formula=ifelse(name %in% c("unadj", "IPTW"),
+                            "none", as.character(y_formula)) %>% as.factor,
+           a_formula=ifelse(name %in% c("unadj", "CARE"),
+                            "none", as.character(a_formula)) %>% as.factor,
+           PATE=factor(PATE, labels=c("Effect", "Null")),
+           trial=ifelse(trial, "Randomized", "Observational")) %>%
+    distinct()
+
+set.seed(1)
+## giant sample size to get the true value of the POP EFFECT
+population_data_effect <- gen_sim_data(population_n, effect=TRUE)
+Ybar1_effect <- mean(population_data_effect$Y1)
+Ybar0_effect <- mean(population_data_effect$Y0)
+PATE_effect <- Ybar1_effect-Ybar0_effect
+rm(population_data_effect)
+
+
 est_sim <- readRDS(find_recent_file(name_start="sim-output",
-                                path="data/simulation-output/")) %>%
-    mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
+                                path="CARE-paper/data/simulation-output/"))
 
 evaluation_sim <- est_sim %>%
     group_by(trial, PATE, y_formula, a_formula, name) %>%
@@ -91,52 +143,11 @@ evaluation_sim <- est_sim %>%
            trial=ifelse(trial, "RCT", "Obs")) %>%
     distinct()
 
-set.seed(1)
-## giant sample size to get the true value of the POP EFFECT
-population_data_effect <- gen_sim_data(population_n, effect=TRUE)
-Ybar1_effect <- mean(population_data_effect$Y1)
-Ybar0_effect <- mean(population_data_effect$Y0)
-PATE_effect <- Ybar0_effect-Ybar1_effect
-rm(population_data_effect)
-
-app_data <- read.csv("data/app-output.csv")
+app_data <- read.csv("CARE-paper/data/app-output.csv")
 @
 
-\begin{frontmatter}
-\title{The covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
-\runtitle{The covariate-adjusted residual estimator}
+\maketitle
 
-\begin{aug}
-\author{\fnms{Stephen A.} \snm{Lauer}\thanksref{t1}\ead[label=e1]{slauer5@jh.edu}},
-\author{\fnms{Nicholas G.} \snm{Reich}\thanksref{t2}\ead[label=e2]{nick@schoolph.umass.edu}}
-\and
-\author{\fnms{Laura B.} \snm{Balzer}\thanksref{t2}\ead[label=e3]{lbalzer@umass.edu}}
-\runauthor{Lauer, Reich, \& Balzer}
-
-\affiliation{Johns Hopkins Bloomberg School of Public Health\thanksmark{t1} and University of Massachusetts, Amherst\thanksmark{t2}}
-
-\address{
-S.A. Lauer \\
-Department of Epidemiology \\
-Bloomberg School of Public Health \\
-Johns Hopkins University \\
-Baltimore, MD 21205 \\
-United States of America \\
-\printead{e1}
-}
-
-\address{
-N.G. Reich \\
-L.B. Balzer \\
-Department of Biostatistics and Epidemiology \\
-School of Public Health and Health Sciences \\
-University of Massachusetts \\
-Amherst, MA, 01003 \\
-United States of America \\
-\printead{e2}\\
-\phantom{E-mail:\ }\printead*{e3}
-}
-\end{aug}
 
 \begin{abstract}
 We often seek to estimate the causal effect of an exposure on a particular outcome in both randomized and observational settings.
@@ -150,40 +161,31 @@ The covariate-adjusted residuals estimator is valid for use in randomized trials
 The covariate-adjusted residuals estimator with inverse probability weighting provides an efficient alternative for use in randomized and observational settings.
 \end{abstract}
 
-\begin{keyword}
-\kwd{causal inference}
-\kwd{inverse probability treatment weighting}
-\kwd{confounding}
-\kwd{randomized trials}
-\kwd{observational studies}
-\end{keyword}
-
-\end{frontmatter}
 
 Estimating the effect of an exposure on a population has a long history.
-In 1855, John Snow compared the mortality rates of households in London by the company that supplied their water to locate the source of a cholera epidemic.\citep{Snow1855}
-In 1881, Louis Pasteur inoculated 50 sheep with anthrax, 25 of whom had been vaccinated; the vaccinated sheep survived as the unvaccinated died, providing evidence that his anthrax vaccine was effective.\citep{Merrill2010}
-In 1948, Austin Bradford Hill conducted the first modern randomized clinical trial, to evaluate a treatment for pulmonary tuberculosis,\citep{Hill1948, Yoshioka1998} and later formulated guidelines for researchers and practitioners to transition from thinking in terms of statistical association to those of causation.\citep{Hill1965}
-Since then, there has been a proliferation of methods to determine the exposure effects in randomized trials and observational studies.\citep{Fisher1932, Horvitz1952, Cochran1957, Cox1982, Rosenbaum1983, Robins1986, VanderLaan2006, Tsiatis2008, Hayes2009, Moore2009, Rosenblum2010, Rose2011, Balzer2016}
+In 1855, John Snow compared the mortality rates of households in London by the company that supplied their water to locate the source of a cholera epidemic.\cite{Snow1855}
+In 1881, Louis Pasteur inoculated 50 sheep with anthrax, 25 of whom had been vaccinated; the vaccinated sheep survived as the unvaccinated died, providing evidence that his anthrax vaccine was effective.\cite{Merrill2010}
+In 1948, Austin Bradford Hill conducted the first modern randomized clinical trial, to evaluate a treatment for pulmonary tuberculosis,\cite{Hill1948, Yoshioka1998} and later formulated guidelines for researchers and practitioners to transition from thinking in terms of statistical association to those of causation.\cite{Hill1965}
+Since then, there has been a proliferation of methods to determine the exposure effects in randomized trials and observational studies.\cite{Fisher1932, Horvitz1952, Cochran1957, Cox1982, Rosenbaum1983, Robins1986, VanderLaan2006, Tsiatis2008, Hayes2009, Moore2009, Rosenblum2010, Rose2011, Balzer2016}
 
-One such method is the covariate-adjusted residuals estimator (CARE), which was formulated to estimate the effect of an exposure on an outcome of interest in individually randomized or cluster randomized trials.\citep{Gail1996, Bennett2002, Hayes2009}
+One such method is the covariate-adjusted residuals estimator (CARE), which was formulated to estimate the effect of an exposure on an outcome of interest in individually randomized or cluster randomized trials.\cite{Gail1996, Bennett2002, Hayes2009}
 To implement CARE, researchers first predict the outcome using baseline covariates that influence the outcome, while leaving out the exposure.
 Then they find the average residual for each group; this error can be the difference between or the ratio of the observed values versus predicted values (i.e., the prediction error).
 The CARE estimate of the exposure effect is the discrepancy between the average residuals in each group.
 In a randomized trial setting, \cite{Gail1996} used parametric regression models to predict the outcome as a function of baseline covariates, and demonstrated that while maintaining confidence interval coverage, CARE could increase the statistical power over an unadjusted estimator, which is the average difference (ratio) in outcomes between randomized groups.
 \cite{Bennett2002} showed that CARE made accurate estimates of the effect size in cluster randomized trials, even when there were small numbers of clusters and moderate imbalances in the distribution of predictive covariates.
-Most recently, CARE was used to investigate the effect of a Universal Test-and-Treat intervention on HIV incidence in a large cluster randomized trial in Zambia and South Africa.\citep{hayes_impact_2019}
+Most recently, CARE was used to investigate the effect of a Universal Test-and-Treat intervention on HIV incidence in a large cluster randomized trial in Zambia and South Africa.\cite{hayes_impact_2019}
 To the best of our knowledge, the properties of CARE in a randomized trial have not been evaluated non-parametrically.
 
-In observational settings, CARE is commonly used in ecology under the name `residual index',\citep{Jakob1996, Kotiaho2001, Blackwell2002, ELKIN2005, Sanchez-Chardi2007, Danielson-Francois2009} although it has received some criticism.\citep{Green2001,Garcia-Berthou2001}
+In observational settings, CARE is commonly used in ecology under the name `residual index',\cite{Jakob1996, Kotiaho2001, Blackwell2002, ELKIN2005, Sanchez-Chardi2007, Danielson-Francois2009} although it has received some criticism.\cite{Green2001,Garcia-Berthou2001}
 In the ecological field of allometry, researchers have used the residual index to estimate the association of an exposure on the body mass of an organism, often in observational settings rather than randomized trials.
-While there are domain-specific questions about whether ordinary least squares linear regression is being used appropriately in allometry,\citep{Green2001} others have questioned the statistical validity of the residual index under any circumstances.
+While there are domain-specific questions about whether ordinary least squares linear regression is being used appropriately in allometry,\cite{Green2001} others have questioned the statistical validity of the residual index under any circumstances.
 In particular, \cite{Garcia-Berthou2001} stated that ``even if the assumptions of the linear model hold for the original variables, they will not hold for the residuals'' and thus ``the `residual index' should never be used for statistical analyses of condition or any other variable''.
 To the best of our knowledge, there has been no statistical theory presented to date to support the continued use of the residual index, and thus CARE, in an observational setting.
 
 In this manuscript, we provide new non-parametric theory that shows CARE is an unbiased estimator of the effect of a binary exposure in randomized trials, but a biased estimator in most observational settings of interest. We also provide the conditions in which CARE is a consistent estimator and asymptotically normal.
 Our work supplements and generalizes existing parametric results from \cite{Gail1996} for randomized trials and establishes new theory for observational studies.
-We compare CARE to existing estimators and introduce a novel estimator for use in both randomized and observational settings; CARE-IPW, our new estimator, combines CARE with methods using inverse probability weighting.\citep{Horvitz1952, Robins2000, Rosenbaum1983} We prove CARE-IPW is an unbiased estimator in both randomized trials and observational settings, and provide the conditions for consistency and asymptotic normality.
+We compare CARE to existing estimators and introduce a novel estimator for use in both randomized and observational settings; CARE-IPW, our new estimator, combines CARE with methods using inverse probability weighting.\cite{Horvitz1952, Robins2000, Rosenbaum1983} We prove CARE-IPW is an unbiased estimator in both randomized trials and observational settings, and provide the conditions for consistency and asymptotic normality.
 We support these theoretical results with a simulation study.
 
 As an illustration, we apply these methods to real data to estimate the effect of bednets on childhood mortality in a cluster randomized trial in Ghana as originally published by \cite{Binka1996} and discussed in \cite{Bennett2002, Hayes2009}.
@@ -194,7 +196,7 @@ The data includes age in months at time of enrollment, sex, outcome, years of fo
 To improve the precision of their analysis, \cite{Binka1996} used CARE to adjust for the imbalanced age distributions between the exposure levels.
 The authors found that bednets were associated with an all-cause child mortality rate ratio of 0.83 (95\% CI: 0.69-1.00).
 \cite{Hayes2009} repeated this analysis using both age and sex as covariates and compared the estimated rate ratio from CARE to that of an unadjusted analysis.
-Both the CARE rate ratio (RR: 0.844, 95\% CI: 0.713, 0.999) and rate difference (RD: -4.26, 95\% CI: -8.76, 0.23) estimates indicated a stronger association than that found by the unadjusted estimator (RR: 0.859, 95\% CI: 0.721, 1.023; RD: -3.95, 95\% CI: none provided).\citep{Hayes2009}
+Both the CARE rate ratio (RR: 0.844, 95\% CI: 0.713, 0.999) and rate difference (RD: -4.26, 95\% CI: -8.76, 0.23) estimates indicated a stronger association than that found by the unadjusted estimator (RR: 0.859, 95\% CI: 0.721, 1.023; RD: -3.95, 95\% CI: none provided).\cite{Hayes2009}
 We will use this case study as an example when describing the causal framework and statistical theory and as our real data application.
 
 \section{Causal Roadmap}
@@ -207,7 +209,7 @@ For example, a descriptive analysis may provide point and uncertainty estimates 
 If we were interested in predicting childhood mortality, we would want to know whether including a covariate for bednets added value to predictions that may use other information (such as age and sex), regardless of whether that relationship was causal or associative.
 Answering the causal question requires a deeper understanding of the system that generates the exposure and the outcome, as well as the influence of additional covariates.
 
-Several conceptual and analytic frameworks exist and can guide our answering of causally motivated questions.\citep{Neyman1923, Rubin1974, Robins1986, Rubin1990, Holland1986, Spirtes1993, Pearl2009, Robins2009, Richardson2013swig,Petersen2014, balzer_tutorial_2016,  Hernan2016}.
+Several conceptual and analytic frameworks exist and can guide our answering of causally motivated questions.\cite{Neyman1923, Rubin1974, Robins1986, Rubin1990, Holland1986, Spirtes1993, Pearl2009, Robins2009, Richardson2013swig,Petersen2014, balzer_tutorial_2016,  Hernan2016}.
 Here, we review the Causal Roadmap of \cite{Petersen2014} and use the bednet example for illustration.
 The key steps of the Causal Roadmap are representing knowledge of the data generating process (represented by a \textit{causal model}); specifying the quantity that answers the scientific question (the \textit{causal parameter}); evaluating the assumptions required to link the causal quantity to a well-defined function of the observed data distribution (the \textit{statistical parameter} which may or may not be \textit{identifiable}); and finally obtaining a point estimate and inference of the statistical parameter.
 
@@ -226,7 +228,7 @@ Other covariates $W^A$ only influence the exposure $A$ and not the outcome $Y$; 
 \label{fig:dag}
 \end{figure}
 
-A causal model is a structural framework for expressing the relationships between variables in a given setting.\citep{Pearl1988, Pearl2009, Pearl2010, Goldberger1972, Duncan1975}
+A causal model is a structural framework for expressing the relationships between variables in a given setting.\cite{Pearl1988, Pearl2009, Pearl2010, Goldberger1972, Duncan1975}
 A causal model can be expressed graphically as a diagram, where variables are connected by edges (arrows) that originate at a potential cause and terminate at the effect.
 Figure \ref{fig:dag}a is a diagram representing a randomized trial, like that of our case study, where $A$ is a binary exposure ($A=1$ if the cluster received the bednet intervention, $A=0$ if the cluster did not) and $W^Y$ is the set of baseline covariates (the average age and percentage of children who are female for each cluster) that may influence the outcome $Y$ (childhood mortality).
 There are no edges pointing to the exposure $A$ because the randomization procedure makes the allocation of exposure independent of all other covariates.
@@ -243,7 +245,7 @@ Places with greater mosquito abundance prior to the intervention may be higher r
 Thus mosquito abundance is a confounding covariate, as it is a common cause of both the outcome and the exposure.
 
 With the causal model specified, we can translate our scientific question into a causal parameter.
-We assume that the relationships within the causal model are autonomous, meaning that changing one relationship does not change the other relationships, although changes may result in different effects downstream.\citep{Pearl2009,Pearl2010}
+We assume that the relationships within the causal model are autonomous, meaning that changing one relationship does not change the other relationships, although changes may result in different effects downstream.\cite{Pearl2009,Pearl2010}
 Therefore, we could modify the way in which the exposure is generated and see resulting changes in the outcome.
 Specifically, we could intervene to give impregnated bednets to a cluster (i.e. set $A=1$)
 and generate the counterfactual (potential) outcome $Y(1)$ for that cluster.
@@ -261,9 +263,9 @@ In an observational setting, suppose our observed data consist of confounding co
 In this setting, we use the difference in conditional expectations between the exposed and unexposed, adjusted for and averaged across the measured confounding covariates, as the statistical parameter:\begin{align}
 	\Psi^{obs}(\mathbb{P}) &= \mathbb{E}_{W^C} \big[ \mathbb{E}(Y \mid A=1,W^C) - \mathbb{E}(Y \mid A=0,W^C) \big]. \label{eqn:gcomp}
 \end{align}
-This statistical parameter $\Psi^{obs}(\mathbb{P})$ is known as the ``G-computation identifiability result'', which identifies the ATE under two assumptions.\citep{Robins1986}
+This statistical parameter $\Psi^{obs}(\mathbb{P})$ is known as the ``G-computation identifiability result'', which identifies the ATE under two assumptions.\cite{Robins1986}
 First, there must be no unmeasured confounding between the exposure and the outcome: $Y(a) \independent A \mid W^C$.
-Second, the `positivity assumption', which states that each possible strata of measured confounding covariates has a non-zero probability of being in each exposure group ($\mathbb{P}(A=a | W^C=w^C)>0, \forall w^C \in \mathbb{P}(W^C=w^C)>0$), must hold.\citep{Petersen2010}
+Second, the `positivity assumption', which states that each possible strata of measured confounding covariates has a non-zero probability of being in each exposure group ($\mathbb{P}(A=a | W^C=w^C)>0, \forall w^C \in \mathbb{P}(W^C=w^C)>0$), must hold.\cite{Petersen2010}
 In our example, the statistical parameter $\Psi^{obs}(\mathbb{P})$ is the expected difference in the childhood mortality rate between clusters with and without bednets adjusting for common causes.
 
 In a randomized trial, the process for allocating units to the exposure is truly random (i.e. a coin flip). Therefore, the assumptions of no unmeasured confounding and positivity are satisfied naturally by the study design.
@@ -271,7 +273,7 @@ Therefore, in this setting, we can identify the ATE with the target statistical 
 \begin{align}
 	\Psi^{RCT}(\mathbb{P}) = \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0) \label{eqn:rct}.
 \end{align}
-The statistical parameter $\Psi^{RCT}(\mathbb{P})$ can be consistently estimated using the difference in the average outcome between the exposure groups, also known as the `unadjusted estimator':\citep{Neyman1923}
+The statistical parameter $\Psi^{RCT}(\mathbb{P})$ can be consistently estimated using the difference in the average outcome between the exposure groups, also known as the `unadjusted estimator':\cite{Neyman1923}
 \begin{align}
 	\hat{\Psi}^{unadj}(\hat{\mathbb{P}}) &= \frac{1}{n_1} \sum_{i \forall A_i=1} Y_i - \frac{1}{n_0} \sum_{i \forall A_i=0} Y_i = \hat{\mathbb{E}}(Y|A=1) - \hat{\mathbb{E}}(Y|A=0), \label{eqn:unadj}
 \end{align}
@@ -280,6 +282,7 @@ In the bednet cluster randomized trial, the unadjusted estimate is the differenc
 
 
 \begin{figure}[hbt!]
+\centering
 \includegraphics[width=.7\linewidth]{figure/big-app-fig-1.pdf}
 \caption{
 Estimates of the effect of bednets on childhood mortality rate using different methods; data obtained from \cite{Hayes2009}.
@@ -297,16 +300,16 @@ Specifically, the point estimate from CARE--IPW is the difference in the average
 \end{figure}
 
 In observational settings, the exposure allocation is no longer random, and we have to account for common causes of the exposure $A$ and outcome $Y$.
-If $W^C$ captures all those common causes (i.e. there is no unmeasured confounding) and there is sufficient variability in the exposure within possible strata of $W^C$ (i.e. positivity holds), then the inverse probability weighting (IPW) estimator can be used to estimate the statistical parameter $\Psi^{obs}(\mathbb{P})$:\citep{Horvitz1952,Robins2000}
+If $W^C$ captures all those common causes (i.e. there is no unmeasured confounding) and there is sufficient variability in the exposure within possible strata of $W^C$ (i.e. positivity holds), then the inverse probability weighting (IPW) estimator can be used to estimate the statistical parameter $\Psi^{obs}(\mathbb{P})$:\cite{Horvitz1952,Robins2000}
 \begin{align}
 	\hat{\Psi}^{IPW}(\hat{\mathbb{P}}) &= \frac{1}{n} \sum_{i=1}^n \left(\frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1 \mid W^C_i)} - \frac{\mathbb{I}(A_i=0)}{1-\hat{\mathbb{P}}(A=1 \mid W^C_i)} \right) Y_i, \label{eqn:iptw}
 \end{align}
-which controls for the confounding covariates through estimates of the conditional probability of receiving the exposure, called `propensity scores' $\hat{\mathbb{P}}(A=1 \mid W^C)$.\citep{Rosenbaum1983}
+which controls for the confounding covariates through estimates of the conditional probability of receiving the exposure, called `propensity scores' $\hat{\mathbb{P}}(A=1 \mid W^C)$.\cite{Rosenbaum1983}
 Intuitively, the IPW estimator up-weights exposure-covariate combinations that are rare, relative to a randomized trial, and down-weights exposure-covariate combinations that are more common, relative to a randomized trial.
 If the propensity scores are consistent for the true conditional probability of exposure given common causes $\mathbb{P}(A=1 \mid W^C)$, the IPW estimator is consistent for the statistical parameter $\Psi^{obs}(\mathbb{P})$.
 Notably, the propensity scores do not need to account for other covariates that only influence the exposure $W^A$.
 
-IPW can also be used in randomized trials, and in that setting estimating the known propensity score can lead to efficiency gains over the unadjusted estimator.\citep{vanderLaan2003, Shen2014, Balzer2016}
+IPW can also be used in randomized trials, and in that setting estimating the known propensity score can lead to efficiency gains over the unadjusted estimator.\cite{vanderLaan2003, Shen2014, Balzer2016}
 In the bednet cluster randomized example, we used a logistic regression with independent variables for average age and the proportion of children that are female to estimate the probability of bednet assignment for each cluster $\hat{\mathbb{P}}(A=1 \mid W^Y)$.
 Despite randomization, we found that the estimated propensity scores ranged from 0.22 to 0.72 and were higher for clusters with lower average age than for clusters with higher average age.
 In the study, younger clusters were, by chance, more likely to receive the bednet intervention than older clusters.
@@ -315,7 +318,7 @@ When obtaining a point estimate by taking the average difference in weighted out
 \section{The covariate-adjusted residuals estimator (CARE)}
 \label{sec:care}
 
-The covariate-adjusted residuals estimator (CARE) was proposed as a method to estimate the ATE in randomized trials.\citep{Gail1996, Bennett2002, Hayes2009}
+The covariate-adjusted residuals estimator (CARE) was proposed as a method to estimate the ATE in randomized trials.\cite{Gail1996, Bennett2002, Hayes2009}
 First, the outcome $Y$ is  predicted using only the baseline covariates $W^Y$ and not the exposure $A$, giving us predicted values $\hat{\mathbb{E}}(Y \mid W^Y)$.
 Next, residuals are derived as the difference between the observed outcome and the predicted one.
 Finally, the difference in the average residuals between exposure groups provides a point estimate:
@@ -330,10 +333,10 @@ In the bednet cluster randomized example, we used Poisson regression to estimate
 The point estimate from CARE is then the difference between the average residual for intervention clusters and the average residual for control clusters (Figure \ref{fig:example}c)
 
 
-\begin{thm}
-In a randomized trial, the covariate adjusted residuals estimator (CARE) is an unbiased estimator of the target statistical parameter $\Psi^{RCT}(\mathbb{P}) = \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0)$ and thus the average treatment effect (ATE) because the identifiability assumptions hold by design.
-\end{thm}
-The proof is given in Appendix \ref{app:care-rct}. Briefly, consider the following estimating function of the observed data $O=(W^Y,A,Y)$ and parameter $\psi$: \citep{Rose2011, Kennedy2017}
+\textbf{Theorem 2.1}
+\textit{In a randomized trial, the covariate adjusted residuals estimator (CARE) is an unbiased estimator of the target statistical parameter $\Psi^{RCT}(\mathbb{P}) = \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0)$ and thus the average treatment effect (ATE) because the identifiability assumptions hold by design.}
+
+The proof is given in Appendix \ref{app:care-rct}. Briefly, consider the following estimating function of the observed data $O=(W^Y,A,Y)$ and parameter $\psi$: \cite{Rose2011, Kennedy2017}
 \begin{align}
 D(O; \psi) =\left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)} \right) \left( Y -\mathbb{E}(Y \mid W^Y) \right) - \psi
 \label{eqn:CAREee}
@@ -348,16 +351,15 @@ and we obtain a point estimate from CARE by solving this estimating equation. In
 
 CARE requires estimation of both the marginal probability of the exposure $\mathbb{P}(A=1)$ and conditional expectation of the outcome, given the covariates $\mathbb{E}(Y \mid W^Y)$.
 Since the exposure mechanism is always consistently estimated in randomized trials, CARE will be consistent for $\Psi^{RCT}(\mathbb{P})$ in a trial setting.
-Under regularity conditions,\citep{Rose2011, Kennedy2017} the Central Limit Theorem applies, and CARE is asymptotically normal with variance well-approximated by the sample variance of $\hat{D}(O;\hat{\psi}^{CARE})$ divided by sample size $n$.
+Under regularity conditions,\cite{Rose2011, Kennedy2017} the Central Limit Theorem applies, and CARE is asymptotically normal with variance well-approximated by the sample variance of $\hat{D}(O;\hat{\psi}^{CARE})$ divided by sample size $n$.
 This simple variance estimator can be used for construction of Wald-Type 95\% confidence intervals and testing the null hypothesis.
 
-When accounting for predictive covariates $W^Y$ that are imbalanced by chance between the two randomized groups, we expect CARE to provide efficiency gains over the unadjusted estimator. \citep{Fisher1932, Cochran1957, Cox1982, Tsiatis2008, Moore2009, Rosenblum2010, Balzer2016} When the predicted values of the outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ are a constant value (e.g. zero or the mean of all observations $\hat{\mathbb{E}}(Y)$), then CARE is equivalent to the unadjusted estimator (proof in Appendix \ref{app:care-rct}).
+When accounting for predictive covariates $W^Y$ that are imbalanced by chance between the two randomized groups, we expect CARE to provide efficiency gains over the unadjusted estimator. \cite{Fisher1932, Cochran1957, Cox1982, Tsiatis2008, Moore2009, Rosenblum2010, Balzer2016} When the predicted values of the outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ are a constant value (e.g. zero or the mean of all observations $\hat{\mathbb{E}}(Y)$), then CARE is equivalent to the unadjusted estimator (proof in Appendix \ref{app:care-rct}).
 Thus, the unadjusted estimator could be considered a special case of CARE.
 
+\textbf{Theorem 2.2}
+\textit{In most observational settings of interest, the covariate adjusted residuals estimator (CARE) is a biased estimator of the target statistical parameter $\Psi^{obs}(\mathbb{P})=\mathbb{E}_{W^C}\big[ \mathbb{E}(Y|A=1, W^C) - \mathbb{E}(Y|A=0,W^C) \big]$.}
 
-\begin{thm}
-In most observational settings of interest, the covariate adjusted residuals estimator (CARE) is a biased estimator of the target statistical parameter $\Psi^{obs}(\mathbb{P})=\mathbb{E}_{W^C}\big[ \mathbb{E}(Y|A=1, W^C) - \mathbb{E}(Y|A=0,W^C) \big]$.
-\end{thm}
 The proof is given in Appendix~\ref{app:care-obs}.
 Briefly, the expectation of the CARE estimating function (Equation~\ref{eqn:CAREee}) for $\Psi^{obs}(\mathbb{P}) = \psi^{obs}$ is
 \begin{align*}
@@ -384,10 +386,9 @@ The CARE--IPW estimate is the difference in the weighted average of the residual
 The CARE--IPW estimator can also be applied to randomized trials by replacing the confounding covariates $W^C$, which are not present in randomized trials, with the covariates that affect the outcome $W^Y$.
 In the bednet cluster randomized trial example, we used Poisson regression to estimate the child mortality rate for each cluster $\mathbb{E}(Y \mid W^Y)$, as in the CARE estimator, and a logistic regression to estimate the propensity scores for bednet assignment $\mathbb{P}(A=1 \mid W^Y)$, as in the IPW estimator (Figure \ref{fig:example}d).
 
-\begin{thm}
-In an observational setting, the covariate-adjusted residuals estimator with inverse probability weighting (CARE--IPW) is an unbiased estimator of the target statistical parameter $\Psi^{obs}(\mathbb{P}) = \mathbb{E}_{W^C}\big[ \mathbb{E}(Y|A=1, W^C) - \mathbb{E}(Y|A=0,W^C) \big]$.
-In randomized trials where the identifiability assumptions hold by design and $\Psi^{obs}(\mathbb{P})=\Psi^{RCT}(\mathbb{P})$, CARE--IPW is an unbiased estimator of the average treatment effect (ATE).
-\end{thm}
+\textbf{Theorem 3.1}
+\textit{In an observational setting, the covariate-adjusted residuals estimator with inverse probability weighting (CARE--IPW) is an unbiased estimator of the target statistical parameter $\Psi^{obs}(\mathbb{P}) = \mathbb{E}_{W^C}\big[ \mathbb{E}(Y|A=1, W^C) - \mathbb{E}(Y|A=0,W^C) \big]$.
+In randomized trials where the identifiability assumptions hold by design and $\Psi^{obs}(\mathbb{P})=\Psi^{RCT}(\mathbb{P})$, CARE--IPW is an unbiased estimator of the average treatment effect (ATE).}
 
 The proof is given in Appendix \ref{app:care-ipw}.
  Briefly, consider the following estimating function of the observed data $O=(W^C,A,Y)$ and parameter $\psi$:
@@ -405,7 +406,7 @@ We obtain a point estimate from CARE--IPW by solving this estimating equation. I
 
 CARE--IPW requires estimation of both the propensity score $\mathbb{P}(A=1 \mid W^C)$ and conditional expectation of the outcome, given the covariates $\mathbb{E}(Y \mid W^C)$.
 CARE--IPW is consistent when the propensity score $\mathbb{P}(A=1 \mid W^C)$ is consistently estimated, or when the null is true and conditional mean outcome $\mathbb{E}(Y \mid A, W^C) = \mathbb{E}(Y \mid W^C)$ is consistently estimated.
-Under regularity conditions,\citep{Rose2011, Kennedy2017} the Central Limit Theorem applies, and CARE--IPW is asymptotically normal with variance well-approximated by the sample variance of $\hat{D}^*(O;\hat{\psi}^{CARE-IPW})$ divided by sample size $n$.
+Under regularity conditions,\cite{Rose2011, Kennedy2017} the Central Limit Theorem applies, and CARE--IPW is asymptotically normal with variance well-approximated by the sample variance of $\hat{D}^*(O;\hat{\psi}^{CARE-IPW})$ divided by sample size $n$.
 By predicting the outcome with the covariates $\hat{\mathbb{E}}(Y \mid W^C)$, we expect CARE-IPW to provide efficiency gains over the IPW estimator.
 
 Each of the estimators described in this paper can be characterized as special cases of CARE--IPW.
@@ -430,7 +431,7 @@ Confidence interval coverage is the proportion of 95\% confidence intervals that
 Power is the proportion of simulations that the estimator rejected the null hypothesis of no exposure effect when there was an exposure effect.
 Type I error is the proportion of simulations that the estimator rejected the null hypothesis of no exposure effect when the null hypothesis was true.
 
-All simulations were run using R version 3.4.3.\citep{R2018}
+All simulations were run using R version 3.4.3.\cite{R2018}
 Simulations were run in parallel on 15 cores on a remote server.
 To maintain reproducibility and to make sure that the same samples were drawn for each scenario (with and without an effect in randomized and observational settings) across simulations, we set a seed for the random number generator for each simulation based on the simulation number.
 The code used for this project can be found on Github.
@@ -511,7 +512,7 @@ Altogether this simulation confirms the theoretical properties described in Sect
 
 \section{Case study}
 
-In this section, we first reproduce the findings of \cite{Hayes2009}, who compared CARE to the unadjusted estimator in the cluster randomized trial to estimate the impact of impregnated bednets on child mortality in northern Ghana.\citep{Bennett2002, Binka1996}
+In this section, we first reproduce the findings of \cite{Hayes2009}, who compared CARE to the unadjusted estimator in the cluster randomized trial to estimate the impact of impregnated bednets on child mortality in northern Ghana.\cite{Bennett2002, Binka1996}
 Then we apply the IPW estimator and CARE--IPW on the same data and discuss the results.
 
 \subsection{Setup}
@@ -564,6 +565,7 @@ While IPW had the largest estimated effect size, it also had the largest estimat
 The estimate made by CARE--IPW was larger than either the unadjusted estimator or CARE and had the smallest variance estimate.
 
 \begin{figure}
+\centering
 \includegraphics[width=1\linewidth]{figure/application-plot-1}
 \caption[The estimates and 95\% confidence intervals for the effect of allocating bednets on childhood mortality rate per thousand follow-up years.]{The estimates and 95\% confidence intervals for the effect of allocating bednets on childhood mortality rate per thousand follow-up years; data obtained from \cite{Hayes2009}.
 The four algorithms are the unadjusted estimator, the covariate-adjusted residuals estimator (CARE), the inverse probability weighting estimator (IPW), and CARE with inverse probability weighting (CARE--IPW).
@@ -582,8 +584,7 @@ In randomized trials, CARE and CARE--IPW achieved greater precision and statisti
 In observational settings, CARE--IPW is consistent for the statistical parameter $\Psi^{obs}(\mathbb{P})$ when accounting for the confounding covariates in the propensity score model and has greater statistical power and less variability than the IPW estimator.
 CARE is biased in observational settings with an exposure effect.
 
-While CARE--IPW improves on CARE and IPW, it is not a ``double robust estimator'', such as targeted maximum likelihood estimation and augmented inverse probability weighting.\citep{%Scharfstein1999,
-robins2000robust, vanderLaan2003, VanderLaan2006, MarkBook}
+While CARE--IPW improves on CARE and IPW, it is not a ``double robust estimator'', such as targeted maximum likelihood estimation and augmented inverse probability weighting.\cite{robins2000robust, vanderLaan2003, VanderLaan2006, MarkBook}
 A double robust estimator is consistent for $\Psi^{obs}(\mathbb{P})$ if either the outcome predictions (which often include the exposure as well as baseline covariates) or the propensity scores is consistently estimated and is the most efficient estimator if both are.
 Similar to the IPW estimator, CARE--IPW is consistent for if and only if the propensity score is consistently estimated.
 By incorporating predictions of the outcome, CARE--IPW is expected to be more efficient than IPW.
@@ -591,18 +592,16 @@ By incorporating predictions of the outcome, CARE--IPW is expected to be more ef
 One advantage to using CARE--IPW rather than another method is that researchers do not need to specify the relationship between the exposure and the outcome.
 This can be beneficial when there is a complex relationship between the exposure and outcome, such as multiple non-linear interactions with other covariates that augment the strength of the exposure.
 
-As with the IPW estimator, CARE--IPW may have stability issues when estimated propensity scores approach zero or one.\citep{Petersen2010}
+As with the IPW estimator, CARE--IPW may have stability issues when estimated propensity scores approach zero or one.\cite{Petersen2010}
 This could be resolved in one of a couple ways.
-Stabilized weights could be used to scale propensity scores away from zero and one.\citep{Robins2000}
-Alternatively, propensity scores could be replaced by incremental propensity scores which relax the positivity assumption by looking at the effect of an intervention when propensity scores are uniformly increased and decreased across all observations.\citep{Kennedy2018}
+Stabilized weights could be used to scale propensity scores away from zero and one.\cite{Robins2000}
+Alternatively, propensity scores could be replaced by incremental propensity scores which relax the positivity assumption by looking at the effect of an intervention when propensity scores are uniformly increased and decreased across all observations.\cite{Kennedy2018}
 
 The findings of this paper suggest that CARE is suitable for use in estimating the average treatment effect in randomized trials, but not in observational settings.
 As an alternative to CARE, CARE--IPW has potential for use as an estimator in observational settings; further research is warranted.
 
 \appendix
 
-
-% CARE in randomized trials}
 \section{Proof of Theorem 2.1}
 \label{app:care-rct}
 
@@ -643,12 +642,12 @@ Thus, when our parameter of interest is $\psi=\psi^{RCT}$, the expectation of th
 \]
 This proves that in a trial setting the CARE estimating function is unbiased for the statistical parameter $\psi^{RCT}$, which identifies the average treatment effect because identifiability assumptions hold by design.
 
-\qed
+
 
 \noindent \textbf{Corollary 2.1.1}:
 If the predicted outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ is a constant (e.g. 0 or the sample average outcome), CARE reduces to the unadjusted difference in mean outcomes.
 
-\begin{proof}
+\textit{Proof:}
 Denote the predicted outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ with a constant $C$, and let $n_1$ and $n_0$ denote the number of treated and control units, respectively. Then we have
 \begin{align*}
 \hat{\Psi}^{CARE} &= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)(Y_i- C) \\
@@ -657,9 +656,7 @@ Denote the predicted outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ with a constant $C$,
 	&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i -\frac{n_1}{n_1} C - \frac{n_0}{n_0} C \\
 	&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i.
 \end{align*}
-\end{proof}
 
-% CARE in observational studies}
 \section{Proof of Theorem 2.2}
 \label{app:care-obs}
 
@@ -690,10 +687,8 @@ Under a non-parametric statistical model, we can only guarantee the expectation 
 \end{align*}
 When the null is false, there might also be some scenarios when $\mathbb{E}\left[ D(O; \psi^{obs}) \right] =0$, but this cannot be proven under a non-parametric statistical model.
 Thus, we conclude that the CARE estimating function is generally not an unbiased for $\psi^{obs}$, even if the covariates $W^C$, which are sufficient to control for confounding, are used to predict the outcome.
-\qed
 
 
-%%% CARE-IPW
 \section{Proof of Theorem 3.1}
 \label{app:care-ipw}
 
@@ -743,15 +738,6 @@ We thank Mark van der Laan for his expert advice.
 This project was funded by NIH NIAID grant 1R01AI102939 and NIGMS grant R35GM119582.
 The findings and conclusions in this manuscript are those of the authors and do not necessarily represent the views of the National Institutes of Health or the National Institute of General Medical Sciences.
 The funders had no role in study design, data collection and analysis, decision to present, or preparation of the presentation.
-
-%%%%%%%%%%%
-\begin{supplement}
-\label{supmat}
-\sname{Supplemental materials}
-\slink[url]{http://www.filler.link/supplemental-materials}
-\sdescription{DAGs for randomized and observational settings with unobserved covariates.}
-\end{supplement}
-
 
 \bibliography{care}
 
