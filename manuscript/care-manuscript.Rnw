@@ -438,7 +438,7 @@ Type I error is the proportion of simulations that the estimator rejected the nu
 All simulations were run using R version 3.4.3.\cite{R2018}
 Simulations were run in parallel on 15 cores on a remote server.
 To maintain reproducibility and to make sure that the same samples were drawn for each scenario (with and without an effect in randomized and observational settings) across simulations, we set a seed for the random number generator for each simulation based on the simulation number.
-The code used for this project can be found on Github.
+The code used for this project can be found at https://doi.org/10.5281/zenodo.3517241.
 
 \subsection{Setup}
 
