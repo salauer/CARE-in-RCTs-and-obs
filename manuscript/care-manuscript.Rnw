@@ -28,41 +28,41 @@
 
 % LB  added the following
 \newcommand\independent{\protect\mathpalette{\protect\independenT}{\perp}}
-    \def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
-    \copy0\kern-\wd0\mkern4mu\box0}}
+\def\independenT#1#2{\mathrel{\setbox0\hbox{$#1#2$}%
+\copy0\kern-\wd0\mkern4mu\box0}}
 
 \title{The covariate-adjusted residual estimator and its use in both randomized trials and observational settings}
 \author{Stephen A. Lauer$^1$, Nicholas G. Reich$^2$, and Laura B. Balzer$^2$}
 \author{
-  Stephen A.~Lauer \\
-  Department of Epidemiology\\
-  Bloomberg School of Public Health\\
-  Johns Hopkins University \\
-  Baltimore, MD 21205 \\
-  \texttt{slauer5@jh.edu} \\
-  %% examples of more authors
-  \AND
-  Nicholas G.~Reich \\
-  Department of Biostatistics\\
-  University of Massachusetts \\
-  Amherst, MA 01003\\
-  \texttt{nick@schoolph.umass.edu} \\
-  \AND
-  Laura B.~Balzer \\
-  Department of Biostatistics\\
-  University of Massachusetts \\
-  Amherst, MA 01003\\
-  \texttt{lbalzer@schoolph.umass.edu} \\
-  %% \And
-  %% Coauthor \\
-  %% Affiliation \\
-  %% Address \\
-  %% \texttt{email} \\
-  %% \And
-  %% Coauthor \\
-  %% Affiliation \\
-  %% Address \\
-  %% \texttt{email} \\
+Stephen A.~Lauer \\
+Department of Epidemiology\\
+Bloomberg School of Public Health\\
+Johns Hopkins University \\
+Baltimore, MD 21205 \\
+\texttt{slauer5@jh.edu} \\
+%% examples of more authors
+\AND
+Nicholas G.~Reich \\
+Department of Biostatistics\\
+University of Massachusetts \\
+Amherst, MA 01003\\
+\texttt{nick@schoolph.umass.edu} \\
+\AND
+Laura B.~Balzer \\
+Department of Biostatistics\\
+University of Massachusetts \\
+Amherst, MA 01003\\
+\texttt{lbalzer@schoolph.umass.edu} \\
+%% \And
+%% Coauthor \\
+%% Affiliation \\
+%% Address \\
+%% \texttt{email} \\
+%% \And
+%% Coauthor \\
+%% Affiliation \\
+%% Address \\
+%% \texttt{email} \\
 }
 
 
@@ -77,33 +77,35 @@ opts_knit$set(root.dir = here::here())
 @
 
 <<load, include=FALSE>>=
-source("Zika-intervention-DHF/code/intervention-effect-utilities.R")
+source("code/CARE-utilities.R")
 population_n <- 100000
 
 est <- readRDS(find_recent_file(name_start="sim-output",
-                                path="CARE-paper/data/simulation-output/"))
+                                path="data/simulation-output/")) %>%
+    rename(ATE=PATE) %>%
+    mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
 
 evaluation_dat <- est %>%
-    group_by(trial, PATE, y_formula, a_formula, name) %>%
+    group_by(trial, ATE, y_formula, a_formula, name) %>%
     summarise(ave = mean(pt),
-              bias = mean(pt - PATE),
-              abs_bias = abs(mean(pt - PATE)),
+              bias = mean(pt - ATE),
+              abs_bias = abs(mean(pt - ATE)),
               mc_var = var(pt),
               mc_se=sqrt(mc_var),
               est_var = mean(se^2),
               est_se=mean(se),
               emp_unbias = abs_bias-1.96*mc_se<0,
-              mse = mean((pt - PATE)^2),
-              mae = mean(abs(pt - PATE)),
+              mse = mean((pt - ATE)^2),
+              mae = mean(abs(pt - ATE)),
               coverage = mean(cover),
-              pwr=mean(reject[PATE!=0]),
-              type1_err = mean(reject[PATE==0])) %>%
+              pwr=mean(reject[ATE!=0]),
+              type1_err = mean(reject[ATE==0])) %>%
     ungroup() %>%
-    mutate(y_formula=ifelse(name %in% c("unadj", "IPTW"),
+    mutate(y_formula=ifelse(name %in% c("unadj", "IPW"),
                             "none", as.character(y_formula)) %>% as.factor,
            a_formula=ifelse(name %in% c("unadj", "CARE"),
                             "none", as.character(a_formula)) %>% as.factor,
-           PATE=factor(PATE, labels=c("Effect", "Null")),
+           ATE=factor(ATE, labels=c("Effect", "Null")),
            trial=ifelse(trial, "Randomized", "Observational")) %>%
     distinct()
 
@@ -112,38 +114,40 @@ set.seed(1)
 population_data_effect <- gen_sim_data(population_n, effect=TRUE)
 Ybar1_effect <- mean(population_data_effect$Y1)
 Ybar0_effect <- mean(population_data_effect$Y0)
-PATE_effect <- Ybar1_effect-Ybar0_effect
+ATE_effect <- Ybar1_effect-Ybar0_effect
 rm(population_data_effect)
 
 
 est_sim <- readRDS(find_recent_file(name_start="sim-output",
-                                path="CARE-paper/data/simulation-output/"))
+                                    path="data/simulation-output/")) %>%
+    rename(ATE=PATE) %>%
+    mutate(name=ifelse(name=="IPTW","IPW",as.character(name)))
 
 evaluation_sim <- est_sim %>%
-    group_by(trial, PATE, y_formula, a_formula, name) %>%
+    group_by(trial, ATE, y_formula, a_formula, name) %>%
     summarise(ave = mean(pt),
-              bias = mean(pt - PATE),
-              abs_bias = abs(mean(pt - PATE)),
+              bias = mean(pt - ATE),
+              abs_bias = abs(mean(pt - ATE)),
               mc_var = var(pt),
               mc_se=sqrt(mc_var),
               est_var = mean(se^2),
               est_se=mean(se),
               emp_unbias = abs_bias-1.96*mc_se<0,
-              mse = mean((pt - PATE)^2),
-              mae = mean(abs(pt - PATE)),
+              mse = mean((pt - ATE)^2),
+              mae = mean(abs(pt - ATE)),
               coverage = mean(cover),
-              pwr=mean(reject[PATE!=0]),
-              type1_err = mean(reject[PATE==0])) %>%
+              pwr=mean(reject[ATE!=0]),
+              type1_err = mean(reject[ATE==0])) %>%
     ungroup() %>%
-    mutate(y_formula=ifelse(name %in% c("unadj", "IPTW"),
+    mutate(y_formula=ifelse(name %in% c("unadj", "IPW"),
                             "none", as.character(y_formula)) %>% as.factor,
            a_formula=ifelse(name %in% c("unadj", "CARE"),
                             "none", as.character(a_formula)) %>% as.factor,
-           PATE=factor(PATE, labels=c("Effect", "Null")),
+           ATE=factor(ATE, labels=c("Effect", "Null")),
            trial=ifelse(trial, "RCT", "Obs")) %>%
     distinct()
 
-app_data <- read.csv("CARE-paper/data/app-output.csv")
+app_data <- read.csv("data/app-output.csv")
 @
 
 \maketitle
@@ -214,8 +218,8 @@ Here, we review the Causal Roadmap of \cite{Petersen2014} and use the bednet exa
 The key steps of the Causal Roadmap are representing knowledge of the data generating process (represented by a \textit{causal model}); specifying the quantity that answers the scientific question (the \textit{causal parameter}); evaluating the assumptions required to link the causal quantity to a well-defined function of the observed data distribution (the \textit{statistical parameter} which may or may not be \textit{identifiable}); and finally obtaining a point estimate and inference of the statistical parameter.
 
 \begin{figure}
-\includegraphics[width=0.49\textwidth]{figure/rct-diagram.jpeg}
-\includegraphics[width=0.49\textwidth]{figure/obs-diagram.jpeg}
+\includegraphics[width=0.49\textwidth]{figure/rct-diagram.pdf}
+\includegraphics[width=0.49\textwidth]{figure/obs-diagram.pdf}
 \caption{
 Causal diagrams for randomized trials \textbf{(a)} and observational studies \textbf{(b)}.
 These diagrams give a visual representation of the relationships between the variables in a causal model.
@@ -253,7 +257,7 @@ Likewise, we could intervene to put the same cluster in the unexposed group (i.e
 and generate the counterfactual (potential) outcome $Y(0)$ for that cluster.
 With these counterfactual outcomes, we translate this scientific question into a well-defined causal quantity, specifically the average treatment effect (ATE):
 \begin{align}
-    ATE = \mathbb{E}[Y(1)-Y(0)]. \label{eqn:pate}
+ATE = \mathbb{E}[Y(1)-Y(0)]. \label{eqn:ate}
 \end{align}
 The ATE is the expected difference in the average childhood mortality rate if all of the clusters in our target population received impregnated bednets ($Y(1)$) and if none of the clusters received impregnated bednets ($Y(0)$).
 We cannot directly estimate this parameter because we only observe the outcomes $Y$ corresponding to the actual exposures $A$ and not both counterfactual outcomes.
@@ -261,7 +265,7 @@ Thus, we need to outline the conditions and assumptions necessary to identify th
 
 In an observational setting, suppose our observed data consist of confounding covariates $W^C$, the exposure indicator $A$, and the outcome $Y$; we denote the observed data as $O=(W^C, A, Y)$ and assume we have $n$ independent, identically distributed (i.i.d.) copies from some distribution $\mathbb{P}$.
 In this setting, we use the difference in conditional expectations between the exposed and unexposed, adjusted for and averaged across the measured confounding covariates, as the statistical parameter:\begin{align}
-	\Psi^{obs}(\mathbb{P}) &= \mathbb{E}_{W^C} \big[ \mathbb{E}(Y \mid A=1,W^C) - \mathbb{E}(Y \mid A=0,W^C) \big]. \label{eqn:gcomp}
+\Psi^{obs}(\mathbb{P}) &= \mathbb{E}_{W^C} \big[ \mathbb{E}(Y \mid A=1,W^C) - \mathbb{E}(Y \mid A=0,W^C) \big]. \label{eqn:gcomp}
 \end{align}
 This statistical parameter $\Psi^{obs}(\mathbb{P})$ is known as the ``G-computation identifiability result'', which identifies the ATE under two assumptions.\cite{Robins1986}
 First, there must be no unmeasured confounding between the exposure and the outcome: $Y(a) \independent A \mid W^C$.
@@ -271,11 +275,11 @@ In our example, the statistical parameter $\Psi^{obs}(\mathbb{P})$ is the expect
 In a randomized trial, the process for allocating units to the exposure is truly random (i.e. a coin flip). Therefore, the assumptions of no unmeasured confounding and positivity are satisfied naturally by the study design.
 Therefore, in this setting, we can identify the ATE with the target statistical parameter $\Psi^{RCT}(\mathbb{P})$, the difference in the expectation of the outcome between exposure groups:
 \begin{align}
-	\Psi^{RCT}(\mathbb{P}) = \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0) \label{eqn:rct}.
+\Psi^{RCT}(\mathbb{P}) = \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0) \label{eqn:rct}.
 \end{align}
 The statistical parameter $\Psi^{RCT}(\mathbb{P})$ can be consistently estimated using the difference in the average outcome between the exposure groups, also known as the `unadjusted estimator':\cite{Neyman1923}
 \begin{align}
-	\hat{\Psi}^{unadj}(\hat{\mathbb{P}}) &= \frac{1}{n_1} \sum_{i \forall A_i=1} Y_i - \frac{1}{n_0} \sum_{i \forall A_i=0} Y_i = \hat{\mathbb{E}}(Y|A=1) - \hat{\mathbb{E}}(Y|A=0), \label{eqn:unadj}
+\hat{\Psi}^{unadj}(\hat{\mathbb{P}}) &= \frac{1}{n_1} \sum_{i \forall A_i=1} Y_i - \frac{1}{n_0} \sum_{i \forall A_i=0} Y_i = \hat{\mathbb{E}}(Y|A=1) - \hat{\mathbb{E}}(Y|A=0), \label{eqn:unadj}
 \end{align}
 where $\hat{\mathbb{P}}$ is the empirical distribution; $n_a$ is the number of units ($i=1,\dots,n=n_0+n_1$) in exposure level $A=a$, and $\hat{\mathbb{E}}(Y|A=a)$ is an estimate of the expected outcome in exposure group $A=a$.
 In the bednet cluster randomized trial, the unadjusted estimate is the difference between the average mortality rate for clusters assigned to receive bednets and the average mortality rate for clusters not assigned to receive bednets, as illustrated in Figure \ref{fig:example}a.
@@ -283,7 +287,7 @@ In the bednet cluster randomized trial, the unadjusted estimate is the differenc
 
 \begin{figure}[hbt!]
 \centering
-\includegraphics[width=.7\linewidth]{figure/big-app-fig-1.pdf}
+\includegraphics[width=\linewidth]{figure/big-app-fig-1.pdf}
 \caption{
 Estimates of the effect of bednets on childhood mortality rate using different methods; data obtained from \cite{Hayes2009}.
 In all plots, the clusters are arranged by the average age of the children in the cluster (x-axis);  blue triangles denote clusters assigned to receive bednets ($A=1$; intervention), and orange circles denote clusters not assigned to receive bednets ($A=0$; control).
@@ -302,7 +306,7 @@ Specifically, the point estimate from CARE--IPW is the difference in the average
 In observational settings, the exposure allocation is no longer random, and we have to account for common causes of the exposure $A$ and outcome $Y$.
 If $W^C$ captures all those common causes (i.e. there is no unmeasured confounding) and there is sufficient variability in the exposure within possible strata of $W^C$ (i.e. positivity holds), then the inverse probability weighting (IPW) estimator can be used to estimate the statistical parameter $\Psi^{obs}(\mathbb{P})$:\cite{Horvitz1952,Robins2000}
 \begin{align}
-	\hat{\Psi}^{IPW}(\hat{\mathbb{P}}) &= \frac{1}{n} \sum_{i=1}^n \left(\frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1 \mid W^C_i)} - \frac{\mathbb{I}(A_i=0)}{1-\hat{\mathbb{P}}(A=1 \mid W^C_i)} \right) Y_i, \label{eqn:iptw}
+\hat{\Psi}^{IPW}(\hat{\mathbb{P}}) &= \frac{1}{n} \sum_{i=1}^n \left(\frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1 \mid W^C_i)} - \frac{\mathbb{I}(A_i=0)}{1-\hat{\mathbb{P}}(A=1 \mid W^C_i)} \right) Y_i, \label{eqn:ipw}
 \end{align}
 which controls for the confounding covariates through estimates of the conditional probability of receiving the exposure, called `propensity scores' $\hat{\mathbb{P}}(A=1 \mid W^C)$.\cite{Rosenbaum1983}
 Intuitively, the IPW estimator up-weights exposure-covariate combinations that are rare, relative to a randomized trial, and down-weights exposure-covariate combinations that are more common, relative to a randomized trial.
@@ -323,8 +327,8 @@ First, the outcome $Y$ is  predicted using only the baseline covariates $W^Y$ an
 Next, residuals are derived as the difference between the observed outcome and the predicted one.
 Finally, the difference in the average residuals between exposure groups provides a point estimate:
 \begin{align}
-	\hat{\Psi}^{CARE}(\hat{\mathbb{P}}) &= \underbrace{\frac{1}{n_1} \sum_{i \forall A_i=1} \left[Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right]}_{\text{Average residual for exposed}} \ - \ \underbrace{ \frac{1}{n_0} \sum_{i \forall A_i=0} \left [Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right]}_{\text{Average residual for unexposed}} \label{eqn:care} \\
-	&= \frac{1}{n}\sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right) \left( Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right), \label{eqn:care3}
+\hat{\Psi}^{CARE}(\hat{\mathbb{P}}) &= \underbrace{\frac{1}{n_1} \sum_{i \forall A_i=1} \left[Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right]}_{\text{Average residual for exposed}} \ - \ \underbrace{ \frac{1}{n_0} \sum_{i \forall A_i=0} \left [Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right]}_{\text{Average residual for unexposed}} \label{eqn:care} \\
+&= \frac{1}{n}\sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right) \left( Y_i - \hat{\mathbb{E}}(Y \mid W^Y_i) \right), \label{eqn:care3}
 \end{align}
 where the number of units at each exposure level is equal to the total number of units times the empirical probability of exposure $n_a = n \times \hat{\mathbb{P}}(A=a)$.
 To obtain the predictions of the outcome in the absence of the exposure $\hat{\mathbb{E}}(Y \mid W^Y)$, \cite{Hayes2009} recommend using Poisson regression for event rates, logistic regression for binary outcomes, and linear regression for continuous outcomes.
@@ -347,7 +351,7 @@ The corresponding estimating equation is given by
 0 = \frac{1}{n} \sum_{i=1}^n D(O_i; \psi)
 \end{align*}
 and we obtain a point estimate from CARE by solving this estimating equation. In other words,
- $\hat{\psi}^{CARE}$ is the solution satisfying $0=1/n \sum_{i=1}^n \hat{D}(O_i; \hat{\psi}^{CARE})$, as shown in Equation~\ref{eqn:care3}.
+$\hat{\psi}^{CARE}$ is the solution satisfying $0=1/n \sum_{i=1}^n \hat{D}(O_i; \hat{\psi}^{CARE})$, as shown in Equation~\ref{eqn:care3}.
 
 CARE requires estimation of both the marginal probability of the exposure $\mathbb{P}(A=1)$ and conditional expectation of the outcome, given the covariates $\mathbb{E}(Y \mid W^Y)$.
 Since the exposure mechanism is always consistently estimated in randomized trials, CARE will be consistent for $\Psi^{RCT}(\mathbb{P})$ in a trial setting.
@@ -363,7 +367,7 @@ Thus, the unadjusted estimator could be considered a special case of CARE.
 The proof is given in Appendix~\ref{app:care-obs}.
 Briefly, the expectation of the CARE estimating function (Equation~\ref{eqn:CAREee}) for $\Psi^{obs}(\mathbb{P}) = \psi^{obs}$ is
 \begin{align*}
-	\mathbb{E} & \left[ D(O; \psi^{obs}) \right] = \psi^{RCT} - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^C) \right] - \psi^{obs}.
+\mathbb{E} & \left[ D(O; \psi^{obs}) \right] = \psi^{RCT} - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^C) \right] - \psi^{obs}.
 \end{align*}
 For this expectation to be zero, we would need the residual difference between the ``unadjusted'' estimand $\psi^{RCT}$ and the ``adjusted'' estimand $\psi^{obs}$ to be captured by the average difference in the weighted predictions in the absence of the exposure $\mathbb{E}(Y|W^C)$.
 There is no reason to believe this would generally be the case.
@@ -379,7 +383,7 @@ As previously discussed, the inverse probability weighting (IPW) estimator contr
 This suggests that we may improve CARE (Equation~\ref{eqn:care3}) for use in observational settings by replacing the empirical probabilities of exposure $\hat{\mathbb{P}}(A=1)$ with estimated propensity scores $\hat{\mathbb{P}}(A=1 \mid W^C)$.
 To our knowledge, such an estimator has not been previously proposed or explored, and thus we name it ``covariate-adjusted residuals estimator with inverse probability weighting'' (CARE--IPW):
 \begin{align}
-    \hat{\Psi}^{CARE-IPW}(\mathbb{\hat{P}}) &= \frac{1}{n}\sum_{i=1}^n  \left( \frac{ \mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1 \mid W^C_i)} - \frac{ \mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0 \mid W^C_i)} \right) \left( Y_i - \hat{\mathbb{E}}(Y\mid W^C_i) \right). \label{eqn:care-ipw}
+\hat{\Psi}^{CARE-IPW}(\mathbb{\hat{P}}) &= \frac{1}{n}\sum_{i=1}^n  \left( \frac{ \mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1 \mid W^C_i)} - \frac{ \mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0 \mid W^C_i)} \right) \left( Y_i - \hat{\mathbb{E}}(Y\mid W^C_i) \right). \label{eqn:care-ipw}
 \end{align}
 The CARE--IPW estimate is the difference in the weighted average of the residuals for the intervention group and for the control group.
 
@@ -391,7 +395,7 @@ In the bednet cluster randomized trial example, we used Poisson regression to es
 In randomized trials where the identifiability assumptions hold by design and $\Psi^{obs}(\mathbb{P})=\Psi^{RCT}(\mathbb{P})$, CARE--IPW is an unbiased estimator of the average treatment effect (ATE).}
 
 The proof is given in Appendix \ref{app:care-ipw}.
- Briefly, consider the following estimating function of the observed data $O=(W^C,A,Y)$ and parameter $\psi$:
+Briefly, consider the following estimating function of the observed data $O=(W^C,A,Y)$ and parameter $\psi$:
 \begin{align}
 D^*(O; \psi) =\left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)} \right) \left( Y -\mathbb{E}(Y \mid W^C) \right) - \psi
 \label{eqn:CAREIPWee}
@@ -402,7 +406,7 @@ The corresponding estimating equation is given by
 0 = \frac{1}{n} \sum_{i=1}^n D^*(O_i; \psi)
 \end{align*}
 We obtain a point estimate from CARE--IPW by solving this estimating equation. In other words,
- $\hat{\psi}^{CARE-IPW}$ is the solution satisfying $1/n \sum_{i=1}^n  \hat{D}^*(O_i; \hat{\psi}^{CARE-IPW})$, as shown in Equation~\ref{eqn:care-ipw}.
+$\hat{\psi}^{CARE-IPW}$ is the solution satisfying $1/n \sum_{i=1}^n  \hat{D}^*(O_i; \hat{\psi}^{CARE-IPW})$, as shown in Equation~\ref{eqn:care-ipw}.
 
 CARE--IPW requires estimation of both the propensity score $\mathbb{P}(A=1 \mid W^C)$ and conditional expectation of the outcome, given the covariates $\mathbb{E}(Y \mid W^C)$.
 CARE--IPW is consistent when the propensity score $\mathbb{P}(A=1 \mid W^C)$ is consistently estimated, or when the null is true and conditional mean outcome $\mathbb{E}(Y \mid A, W^C) = \mathbb{E}(Y \mid W^C)$ is consistently estimated.
@@ -445,7 +449,7 @@ For each unit in the sample, we generate four independent baseline covariates: $
 We simulate a randomized trial where the exposure $A$ is assigned with probability 0.5 as well as an observational setting where the exposure is assigned with a probability given by $logit^{-1}[1 -0.75 \cdot W1 -2 \cdot W4 + 0.5 \cdot W2]$.
 Each unit's counterfactual outcomes, $Y(1)$ and $Y(0)$, are generated as
 \begin{align*}
-   Y(A) &= Bernoulli\left(logit^{-1}[ -0.25 + 0.5 \cdot W1 - 1 \cdot W3 + 2 \cdot W4 - 1.25 \cdot A - 0.5 \cdot A \cdot W3] \right)
+Y(A) &= Bernoulli\left(logit^{-1}[ -0.25 + 0.5 \cdot W1 - 1 \cdot W3 + 2 \cdot W4 - 1.25 \cdot A - 0.5 \cdot A \cdot W3] \right)
 \end{align*}
 by deterministically setting the exposure to $A=1$ and $A=0$, respectively.
 The average treatment effect is calculated by taking the mean difference in the counterfactual outcomes for a population of 100,000 units.
@@ -458,22 +462,22 @@ For the outcome prediction, which is required for CARE and CARE--IPW, we use a l
 \subsection{Results}
 
 Table \ref{table-sim} provides a comparison of the performance of the estimators over $S$=5,000 repetitions of the simulation.
-When there is an effect, the intervention $A$ led to a \Sexpr{formatC(PATE_effect*100,digits=1,format="f")}\% average reduction in the outcome.
+When there is an effect, the intervention $A$ led to a \Sexpr{formatC(ATE_effect*100,digits=1,format="f")}\% average reduction in the outcome.
 
 All estimators are unbiased in the randomized trial setting.
 The 95\% confidence interval coverage for each algorithm is close to or above the nominal level.
 Improvements in Monte Carlo standard error, average standard error, and statistical power over both the unadjusted and the IPW estimators are achieved by both CARE and CARE--IPW.
 
 <<table-sim, echo=FALSE, warning=FALSE, message=FALSE, results='asis'>>=
-unadj_obs_effect_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$PATE=="Effect" & evaluation_sim$name=="unadj"],1, format="f")
-care_obs_effect_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$PATE=="Effect" & evaluation_sim$name=="CARE"],1, format="f")
-ipw_obs_effect_power <- formatC(100*evaluation_sim$pwr[evaluation_sim$trial=="Obs" & evaluation_sim$PATE=="Effect" & evaluation_sim$name=="IPW"],1, format="f")
-cipw_obs_effect_power <- formatC(100*evaluation_sim$pwr[evaluation_sim$trial=="Obs" & evaluation_sim$PATE=="Effect" & evaluation_sim$name=="CARE_IPW"],1, format="f")
-unadj_obs_null_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$PATE=="Null" & evaluation_sim$name=="unadj"],1, format="f")
+unadj_obs_effect_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$ATE=="Effect" & evaluation_sim$name=="unadj"],1, format="f")
+care_obs_effect_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$ATE=="Effect" & evaluation_sim$name=="CARE"],1, format="f")
+ipw_obs_effect_power <- formatC(100*evaluation_sim$pwr[evaluation_sim$trial=="Obs" & evaluation_sim$ATE=="Effect" & evaluation_sim$name=="IPW"],1, format="f")
+cipw_obs_effect_power <- formatC(100*evaluation_sim$pwr[evaluation_sim$trial=="Obs" & evaluation_sim$ATE=="Effect" & evaluation_sim$name=="CARE_IPW"],1, format="f")
+unadj_obs_null_ci <- formatC(100*evaluation_sim$coverage[evaluation_sim$trial=="Obs" & evaluation_sim$ATE=="Null" & evaluation_sim$name=="unadj"],1, format="f")
 
 sim_table <- evaluation_sim %>%
     transmute(Trial=trial,
-              Exposure=PATE,
+              Exposure=ATE,
               Estimator=factor(name,
                                levels=c("CARE_IPW", "CARE", "IPW", "unadj"),
                                labels=c("CARE--IPW", "CARE", "IPW", "Unadj")),
@@ -482,8 +486,8 @@ sim_table <- evaluation_sim %>%
               `Average SE`=est_se,
               `95\\% CI coverage`=paste0(round(coverage*100,1), "\\%"),
               `Power/ Type I error`=paste0(ifelse(Exposure=="Effect",
-                                                 round(pwr*100,1),
-                                                 round(type1_err*100,1)),"\\%")) %>%
+                                                  round(pwr*100,1),
+                                                  round(type1_err*100,1)),"\\%")) %>%
     arrange(desc(Trial), Exposure, Estimator) %>%
     mutate(Trial=ifelse(Estimator=="CARE--IPW",
                         paste0("\\hline \\multirow{4}{*}{",as.character(Trial),"}"), ""),
@@ -615,26 +619,26 @@ In a randomized trial, our target statistical estimand is $\Psi^{RCT}(\mathbb{P}
 The expectation of the CARE estimating function (Equation~\ref{eqn:CAREee}) is
 \begin{align*}
 \mathbb{E} \left[ D(O; \psi ) \right]
-	=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \big(Y - \mathbb{E}(Y \mid W^Y) \big) \right] - \psi \\
-	=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) Y \right]
-	 - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^Y) \right] - \psi
+=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \big(Y - \mathbb{E}(Y \mid W^Y) \big) \right] - \psi \\
+=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) Y \right]
+- \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^Y) \right] - \psi
 \end{align*}
 The first component of the expectation is equal to the target parameter in a randomized trial $\Psi^{RCT}(\mathbb{P})=\psi^{RCT}$:
 \begin{align*}
 \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) Y \right] \\
-	= & \sum_{a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) y\mathbb{P}(Y=y \mid A=a)\mathbb{P}(A=a) \\
-	 = & \sum_{y} \frac{\mathbb{P}(A=1)}{\mathbb{P}(A=1)} y \mathbb{P}( Y=y \mid A=1) - \sum_y \frac{\mathbb{P}(A=0)}{\mathbb{P}(A=0)} y \mathbb{P}( Y=y \mid A=0) \\
-	= & \sum_{y} y \mathbb{P}(Y=y \mid A=1) - \sum_{y} y \mathbb{P}(Y=y \mid A=0) \\
-	= & \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0) \\
-	 = & \psi^{RCT}
-	 \end{align*}
+= & \sum_{a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) y\mathbb{P}(Y=y \mid A=a)\mathbb{P}(A=a) \\
+= & \sum_{y} \frac{\mathbb{P}(A=1)}{\mathbb{P}(A=1)} y \mathbb{P}( Y=y \mid A=1) - \sum_y \frac{\mathbb{P}(A=0)}{\mathbb{P}(A=0)} y \mathbb{P}( Y=y \mid A=0) \\
+= & \sum_{y} y \mathbb{P}(Y=y \mid A=1) - \sum_{y} y \mathbb{P}(Y=y \mid A=0) \\
+= & \mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0) \\
+= & \psi^{RCT}
+\end{align*}
 
 The second component of the expectation is 0:
 \begin{align*}
 \mathbb{E} & \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^Y) \right] \\
-	 &= \sum_{w^Y,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) y \mathbb{P}( Y=y \mid W^Y=w^Y)\mathbb{P}(A=a \mid W^Y=w^Y)\mathbb{P}(W^Y=w^Y) \\
-	 & = \sum_{w^Y,y} \left[ \frac{\mathbb{P}(A=1 \mid W^Y=w^Y)}{\mathbb{P}(A=1)} - \frac{\mathbb{P}(A=0 \mid W^Y=w^Y)}{\mathbb{P}(A=0)} \right] y \mathbb{P}( Y=y \mid W^Y=w^Y)\mathbb{P}(W^Y=w^Y)
-	 \end{align*}
+&= \sum_{w^Y,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) y \mathbb{P}( Y=y \mid W^Y=w^Y)\mathbb{P}(A=a \mid W^Y=w^Y)\mathbb{P}(W^Y=w^Y) \\
+& = \sum_{w^Y,y} \left[ \frac{\mathbb{P}(A=1 \mid W^Y=w^Y)}{\mathbb{P}(A=1)} - \frac{\mathbb{P}(A=0 \mid W^Y=w^Y)}{\mathbb{P}(A=0)} \right] y \mathbb{P}( Y=y \mid W^Y=w^Y)\mathbb{P}(W^Y=w^Y)
+\end{align*}
 In a randomized trial, we have $\mathbb{P}(A \mid W^Y)=\mathbb{P}(A)$, and thus the second component is zero.
 
 Thus, when our parameter of interest is $\psi=\psi^{RCT}$, the expectation of the CARE estimating equation \[
@@ -651,10 +655,10 @@ If the predicted outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ is a constant (e.g. 0 or
 Denote the predicted outcome $\hat{\mathbb{E}}(Y \mid W^Y)$ with a constant $C$, and let $n_1$ and $n_0$ denote the number of treated and control units, respectively. Then we have
 \begin{align*}
 \hat{\Psi}^{CARE} &= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)(Y_i- C) \\
-	&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i -
-	\frac{1}{n_1} \sum_{i \in A_i=1} C - \frac{1}{n_0} \sum_{i \in A_i=0} C \\
-	&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i -\frac{n_1}{n_1} C - \frac{n_0}{n_0} C \\
-	&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i.
+&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i -
+\frac{1}{n_1} \sum_{i \in A_i=1} C - \frac{1}{n_0} \sum_{i \in A_i=0} C \\
+&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i -\frac{n_1}{n_1} C - \frac{n_0}{n_0} C \\
+&= \frac{1}{n} \sum_{i=1}^n \left( \frac{\mathbb{I}(A_i=1)}{\hat{\mathbb{P}}(A=1)} - \frac{\mathbb{I}(A_i=0)}{\hat{\mathbb{P}}(A=0)} \right)Y_i.
 \end{align*}
 
 \section{Proof of Theorem 2.2}
@@ -668,12 +672,12 @@ In an observational setting, our target statistical estimand is $\Psi^{obs}(\mat
 
 Using the same steps as in the Proof for Theorem 2.1 (Appendix \ref{app:care-rct}), but replacing the predictive covariates $W^Y$ with the confounding covariates $W^C$, the expectation of the CARE estimating function (Equation~\ref{eqn:CAREee}) in an observational setting is given by
 \begin{align*}
-	\mathbb{E} & \left[ D(O; \psi) \right] \\
-	=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) Y \right]
-	 - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^C) \right] - \psi \\
-	= & \psi^{RCT} \\
-	 &- \sum_{w^C,y} \left[ \frac{\mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1)} - \frac{\mathbb{P}(A=0 \mid W^C=w^c)}{\mathbb{P}(A=0)} \right] y \mathbb{P}( Y=y \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
-	 & - \psi
+\mathbb{E} & \left[ D(O; \psi) \right] \\
+=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) Y \right]
+- \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0)}\right) \mathbb{E}(Y \mid W^C) \right] - \psi \\
+= & \psi^{RCT} \\
+&- \sum_{w^C,y} \left[ \frac{\mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1)} - \frac{\mathbb{P}(A=0 \mid W^C=w^c)}{\mathbb{P}(A=0)} \right] y \mathbb{P}( Y=y \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
+& - \psi
 \end{align*}
 where $\psi^{RCT}=\mathbb{E}(Y|A=1) - \mathbb{E}(Y|A=0)$ and where, due to confounding, $\mathbb{P}(A=a \mid W^C=w^C) \ne \mathbb{P}(A=a)$.
 When our parameter of interest is $\psi=\psi^{obs}$, the expectation $\mathbb{E}[D(O; \psi^{obs}]$ is generally not zero.
@@ -702,28 +706,28 @@ In an observational setting, our target statistical estimand is $\Psi^{obs}(\mat
 The expectation of the CARE--IPW estimating function (Equation~\ref{eqn:CAREIPWee}) is
 \begin{align*}
 \mathbb{E} \left[ D^*(O \mid \psi ) \right]
-	=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0| \mid W^C)}\right) \big(Y - \mathbb{E}(Y \mid W^C) \big) \right] - \psi \\
-	=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) Y \right] \\
-	& - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1\mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C )}\right) \mathbb{E}(Y \mid W^C) \right] - \psi
+=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0| \mid W^C)}\right) \big(Y - \mathbb{E}(Y \mid W^C) \big) \right] - \psi \\
+=& \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) Y \right] \\
+& - \mathbb{E} \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1\mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C )}\right) \mathbb{E}(Y \mid W^C) \right] - \psi
 \end{align*}
 The first component of the expectation is equivalent to the IPW estimand and equal to the target parameter $\Psi^{obs}(\mathbb{P})=\psi^{obs}$:
-	 \begin{align*}
+\begin{align*}
 \mathbb{E} &\left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) Y \right] \\
-	=& \sum_{w^C,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) y \mathbb{P}(Y=y \mid A=a, W^C=w^C)\\
-	& \times \mathbb{P}(A=a \mid W^C=w^C) \mathbb{P}( W^C=w^C) \\
-	=& \sum_{w^C,y} \frac{\mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1 \mid W^C=w^C)} y \mathbb{P}(Y=y \mid A=1, W^C=w^C) \mathbb{P}( W^C=w^C) \\
-	&- \sum_{w^C,y} \frac{\mathbb{P}(A=0 \mid W^C=w^C)}{\mathbb{P}(A=0 \mid W^C=w^C)} y \mathbb{P}(Y=y \mid A=0, W^C=w^C) \mathbb{P}( W^C=w^C) \\
-	&= \mathbb{E}_{W^C} \Big [ \mathbb{E}(Y \mid A=1, W^C) - \mathbb{E}(Y \mid A=0, W^C) \Big] \\
-	&= \psi^{obs}
+=& \sum_{w^C,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) y \mathbb{P}(Y=y \mid A=a, W^C=w^C)\\
+& \times \mathbb{P}(A=a \mid W^C=w^C) \mathbb{P}( W^C=w^C) \\
+=& \sum_{w^C,y} \frac{\mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1 \mid W^C=w^C)} y \mathbb{P}(Y=y \mid A=1, W^C=w^C) \mathbb{P}( W^C=w^C) \\
+&- \sum_{w^C,y} \frac{\mathbb{P}(A=0 \mid W^C=w^C)}{\mathbb{P}(A=0 \mid W^C=w^C)} y \mathbb{P}(Y=y \mid A=0, W^C=w^C) \mathbb{P}( W^C=w^C) \\
+&= \mathbb{E}_{W^C} \Big [ \mathbb{E}(Y \mid A=1, W^C) - \mathbb{E}(Y \mid A=0, W^C) \Big] \\
+&= \psi^{obs}
 \end{align*}
 
 The second component of the expectation is 0:
 \begin{align*}
 \mathbb{E} & \left[ \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C)}\right) \mathbb{E}(Y \mid W^C) \right] \\
-	 = & \sum_{w^C,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C=w^C)}\right) y \mathbb{P}( Y=y \mid W^C=w^C) \\
-	 & \times \mathbb{P}(A=a \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
-	 & = \sum_{w^C,y} \left( \frac{ \mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{P}(A=0 \mid W^C=w^C)}{\mathbb{P}(A=0 \mid W^C=w^C)} \right) y \mathbb{P}( Y=y \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
-	&= 0
+= & \sum_{w^C,a,y} \left( \frac{\mathbb{I}(A=1)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{I}(A=0)}{\mathbb{P}(A=0 \mid W^C=w^C)}\right) y \mathbb{P}( Y=y \mid W^C=w^C) \\
+& \times \mathbb{P}(A=a \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
+& = \sum_{w^C,y} \left( \frac{ \mathbb{P}(A=1 \mid W^C=w^C)}{\mathbb{P}(A=1 \mid W^C=w^C)} - \frac{\mathbb{P}(A=0 \mid W^C=w^C)}{\mathbb{P}(A=0 \mid W^C=w^C)} \right) y \mathbb{P}( Y=y \mid W^C=w^C)\mathbb{P}(W^C=w^C) \\
+&= 0
 \end{align*}
 
 When our parameter of interest is $\psi=\psi^{obs}$, the expectation of the CARE--IPW estimating function is
